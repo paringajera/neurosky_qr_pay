@@ -8,24 +8,17 @@ This document establishes the mandatory architectural rules, Git workflows, secu
 
 ### 1. Mandatory Git Workflow & Branching Rules
 
-1. **NEVER make direct commits to `main`**.
-2. **Branch Directly Off Active Working Branch (Never Checkout `main` First)**:
-   - For every bug fix, feature addition, or code modification, create a dedicated feature or fix branch:
-     - Features: `feature/<feature-name>` (e.g., `feature/postgres-adapter`, `feature/reviewground-ci`)
-     - Fixes: `fix/<issue-name>` (e.g., `fix/otp-throttle-test`, `fix/bank-sms-regex`)
-   - **Never revert to or checkout `main` when creating a new branch**: Always branch directly off the **current active working branch** (`git checkout -b <new-branch>`). This preserves ongoing work, staged changes, and prevents context loss or accidental regression.
+1. **Single repository, single branch.** All work happens directly on `main` of `origin` (`https://github.com/paringajera/neurosky_qr_pay.git`). Do not create feature/fix branches, do not add other remotes, and do not open pull requests unless the owner asks for one explicitly.
+2. **Keep `main` linear and releasable.** Commit atomically on `main` (see rule 5), run `git pull --ff-only` before starting work, and never force-push or rewrite history that is already on `origin`.
 3. **Mandatory Pre-Commit & Pre-Push Checklist**:
    - **Sync & Prune (`git fetch --prune --all`)**: Always run `git fetch --prune --all` before creating branches, pushing, or opening a PR to clean up stale remote-tracking references.
    - **Typecheck**: Run `npm run typecheck` locally to verify TypeScript compiles without errors.
    - **Unit & Regression Tests**: Run `npm test` locally to ensure 100% of curated test suites pass cleanly.
    - **Inspect Changes**: Always check `git status`, `git diff`, and `git log -n 3 --oneline` before staging/committing to prevent accidental secret leaks, debug dumps, or unneeded files.
    - **Environment Integrity**: Ensure any new environment variables are documented in `.env.example` and `docs/CONFIGURATION.md`. Never hardcode API keys, tokens, or private credentials into source code.
-4. **Strict No-Unsolicited-Push Rule & PR Protocol**:
-   - **Never Push Automatically**: After committing locally, **NEVER execute `git push` to remote (`origin`) without informing and obtaining explicit confirmation from the user in chat first**. All commits must remain strictly local until pre-approved.
-   - **Auto-Create PR Upon Push Confirmation**: Once the user explicitly approves pushing, push the branch (`git push -u origin <branch>`). Check first if a PR already exists (`gh pr list --head <branch>`); if an existing PR is found, inform the developer of the updated PR. If no PR exists, open a Pull Request against `main` using GitHub CLI (`gh pr create`) with a detailed title, summary, and verification details.
-   - **Strict No-Unsolicited-Merge Rule & Clean Branch Deletion (`--delete-branch`)**:
-     - **NEVER merge the PR into `main` automatically**. Always ask/inform the developer and wait for their explicit command before merging any PR.
-     - **Mandatory Branch Deletion & Standard Merge Commit (`--merge`)**: When instructed to merge, ALWAYS execute the merge using a standard merge commit with automatic branch deletion enabled (`gh pr merge <pr-number> --merge --delete-branch`), followed by cleaning up local tracking references (`git checkout main && git pull && git fetch --prune --all && git branch -D <branch>`).
+4. **Strict No-Unsolicited-Push Rule**:
+   - **Never Push Automatically**: After committing locally on `main`, **NEVER execute `git push` without informing and obtaining explicit confirmation from the user in chat first**. All commits must remain strictly local until pre-approved.
+   - **Push Protocol**: Once the user approves, run `git fetch --prune --all`, make sure `main` is fast-forwardable, then `git push origin main`. There is no pull-request or merge step in this workflow.
 5. **Mandatory Granular & Atomic Commits Standard**:
    - **Never Bundle Multiple Unrelated Features into a Single Monolithic Commit**: Create independent, atomic commits for each logical unit of work.
    - **Conventional Commits**: Every commit header MUST adhere strictly to Conventional Commits:
@@ -39,11 +32,10 @@ This document establishes the mandatory architectural rules, Git workflows, secu
      - `chore(...)` — Maintenance tasks
    - **Always Commit with Detailed Information**:
      - Every commit message MUST include a conventional header, a bulleted list of what changed, the architectural rationale, and verification status.
-6. **Mandatory Automated PR Review & Interactive Suggestion Resolution Protocol**:
-   - **Proactive Review & Inline Suggestion Inspection**: After opening a PR or pushing a commit, inspect GitHub Actions CI run results, automated AI code review comments (e.g., ReviewGround, security linters), and **inline PR review suggestions** via `gh pr view <pr-number> --comments` and `gh api repos/<owner>/<repo>/pulls/<pr-number>/comments`.
-   - **Continuous Suggestion & Inline Fix Resolution**: If automated reviews or maintainers flag valid and needed suggestions—such as 1-click inline code suggestions, eliminating dynamic evaluation (`new Function`, `eval`), strengthening path traversal boundaries (`path.relative`), resolving security advisories/CWEs, fixing memory leaks, or improving code safety—the agent **MUST continuously and proactively address and implement them**.
-   - **Sync Fixes Across Fork & Upstream PRs**: When fixes or architectural improvements are committed on the fork, verify whether corresponding open upstream PRs require the same updates and push the new commits to upstream PR branches promptly.
-   - **Re-Verification & Push**: Always verify all fixes locally (`npm run typecheck`, `npm test`) and push updates to the active PR branch so that the PR achieves 100% green checks with zero unresolved blockers or critical warnings before requesting merge approval.
+6. **Mandatory CI Review & Fix Resolution Protocol**:
+   - **Proactive Review**: After pushing to `main`, inspect the GitHub Actions run results and code-scanning alerts for that commit on `origin`.
+   - **Continuous Fix Resolution**: If CI, security linters or scanners flag valid and needed fixes—such as eliminating dynamic evaluation (`new Function`, `eval`), strengthening path traversal boundaries (`path.relative`), resolving security advisories/CWEs, fixing memory leaks, or improving code safety—the agent **MUST proactively address and implement them**.
+   - **Re-Verification & Push**: Always verify all fixes locally (`npm run typecheck`, `npm test`) and, after confirmation, push the follow-up commits to `main` so the latest commit is 100% green with zero unresolved blockers or critical warnings.
 7. **Mandatory Real-World & External Verification Standard (RBI, Regulators, Internet & Community Sources)**:
    - **Never Hardcode Assumptions Directly into Code**: When dealing with real-world entities—such as banking identifiers, regulatory domain spaces (e.g., RBI/IDRBT `.bank.in` and `.fin.in` mandates), bank SMS headers, transaction email alert senders, or NPCI UPI specification rules—never insert assumptions or arbitrary hardcoded lists directly into source code.
    - **Mandatory Web, Regulatory & Community Verification**: If verification is needed for a real test case, domain whitelist, regex pattern, or banking protocol, the agent MUST proactively verify it against authoritative regulatory sources (RBI circulars, IDRBT registry, NPCI specs) and authentic real-world telemetry (community forums like Reddit, bank documentation, official releases).
