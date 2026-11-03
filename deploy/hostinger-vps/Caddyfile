@@ -1,0 +1,40 @@
+# NeuroSky Pay — Caddy reverse proxy with automatic HTTPS (Let's Encrypt).
+# Installed to /etc/caddy/Caddyfile by deploy/hostinger-vps/install.sh, which replaces
+# __DOMAIN__, __PREFIX__ and __ACME_EMAIL__. All services listen on 127.0.0.1 only; Caddy is the
+# single public entry point. flush_interval -1 keeps Server-Sent Events streaming.
+{
+	email __ACME_EMAIL__
+}
+
+# Customer checkout, neurosky.js SDK, QR stand
+__PREFIX__.__DOMAIN__ {
+	reverse_proxy 127.0.0.1:7000 {
+		flush_interval -1
+	}
+}
+
+# Payment Core API: merchant API, webhooks, SSE, Android/Gmail observer ingestion
+__PREFIX__-api.__DOMAIN__ {
+	reverse_proxy 127.0.0.1:6100 {
+		flush_interval -1
+	}
+}
+
+# Merchant Admin dashboard
+__PREFIX__-admin.__DOMAIN__ {
+	reverse_proxy 127.0.0.1:6001 {
+		flush_interval -1
+	}
+}
+
+# Gmail OAuth callback and Gmail observer health
+__PREFIX__-gmail.__DOMAIN__ {
+	reverse_proxy 127.0.0.1:6003
+}
+
+# Reference demo store. Remove this block if you do not want the demo store reachable from the internet.
+__PREFIX__-store.__DOMAIN__ {
+	reverse_proxy 127.0.0.1:5000
+}
+
+# Never publish the Control Center (8090) or the SMS observer (6002); they stay loopback-only.

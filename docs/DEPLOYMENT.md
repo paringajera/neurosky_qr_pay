@@ -102,6 +102,18 @@ For production deployment:
 2. Point your public domain (e.g. `pay.yourdomain.com`) to port `7000` (Checkout Portal) or `6100` (Payment API).
    _The Checkout Portal automatically proxies all `/api/_` requests to the Payment API.\*
 3. Update `BASE_PAYMENT_API_URL` and `BASE_CHECKOUT_URL` in `.env` to match your public HTTPS domain.
+## 5. Single VPS with automatic HTTPS (Hostinger KVM or any Ubuntu server)
+
+Shared web hosting (including Hostinger's shared / Cloud "Node.js" plans) cannot run NeuroSky Pay: it needs
+seven always-on Node.js services on their own ports plus a persistent SQLite file. Use a VPS instead.
+[`deploy/hostinger-vps/`](../deploy/hostinger-vps/README.md) contains a one-command installer that sets up
+Node.js 24, Caddy (Let's Encrypt), a hardened systemd service, the production `.env`, the firewall and
+nightly backups:
+
+```bash
+bash /opt/neurosky-pay/deploy/hostinger-vps/install.sh example.com pay https://shop.example.com
+```
+
 ## Vercel Services
 
 The root `vercel.json` defines the approved multi-service deployment. Public

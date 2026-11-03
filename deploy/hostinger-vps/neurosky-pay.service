@@ -1,0 +1,34 @@
+# systemd unit for the NeuroSky Pay production supervisor (npm start -> scripts/start.js).
+# Installed to /etc/systemd/system/neurosky-pay.service by deploy/hostinger-vps/install.sh,
+# which replaces __APP_DIR__ and __APP_USER__.
+[Unit]
+Description=NeuroSky Pay — UPI payment gateway (Control Center supervisor and services)
+Documentation=file://__APP_DIR__/deploy/hostinger-vps/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=-__APP_DIR__/.env
+Environment=NODE_ENV=production
+Environment=NEUROSKY_MODE=production
+ExecStart=/usr/bin/node scripts/start.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+# Hardening: the service only needs to write inside its own directory (database, secrets, backups).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=__APP_DIR__
+
+[Install]
+WantedBy=multi-user.target
