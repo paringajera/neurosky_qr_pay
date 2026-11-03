@@ -1,0 +1,15 @@
+{
+  "name": "gmail-observer",
+  "version": "1.0.0",
+  "description": "Gmail Payment Observer Service for NeuroSky Pay",
+  "type": "module",
+  "main": "./src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test src/__tests__/**/*.test.js"
+  },
+  "dependencies": {
+    "@neurosky/common": "*",
+    "@neurosky/observer-sdk": "*"
+  }
+}

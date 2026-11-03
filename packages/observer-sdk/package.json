@@ -1,0 +1,10 @@
+{
+  "name": "@neurosky/observer-sdk",
+  "version": "1.0.0",
+  "description": "SDK for submitting observations to NeuroSky Pay Payment Detection Core",
+  "type": "module",
+  "main": "./src/index.js",
+  "dependencies": {
+    "@neurosky/common": "*"
+  }
+}
