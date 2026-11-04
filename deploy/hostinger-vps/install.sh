@@ -88,9 +88,13 @@ if ! id -u "$APP_USER" >/dev/null 2>&1; then
 fi
 if [ -d "$APP_DIR/.git" ]; then
   echo "Existing checkout found in $APP_DIR; updating."
-  git -C "$APP_DIR" fetch --prune --all
-  git -C "$APP_DIR" checkout -q "$BRANCH"
-  git -C "$APP_DIR" pull --ff-only
+  # The checkout belongs to the service user after the first run. Git refuses to touch a
+  # repository owned by someone else ("detected dubious ownership"), so hand the files over
+  # first and run git as that user, exactly like update.sh does.
+  chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+  sudo -u "$APP_USER" -H git -C "$APP_DIR" fetch --prune --all
+  sudo -u "$APP_USER" -H git -C "$APP_DIR" checkout -q "$BRANCH"
+  sudo -u "$APP_USER" -H git -C "$APP_DIR" pull --ff-only
 elif [ -f "$APP_DIR/package.json" ]; then
   echo "Using the uploaded copy already present in $APP_DIR."
 else
