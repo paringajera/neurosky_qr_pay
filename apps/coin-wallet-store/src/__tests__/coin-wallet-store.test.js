@@ -6,6 +6,7 @@ import { Database } from '@neurosky/db';
 import { hashApiKey } from '../../../../packages/db/src/repositories/merchant.repository.js';
 import { startServer as startPaymentApi } from '../../../payment-api/src/index.js';
 import { startCoinWalletStore } from '../index.js';
+import { CoinWalletStoreServer } from '../server.js';
 import { generateHmac } from '@neurosky/common';
 
 describe('Coin Top-Up Wallet Demo Store Integration Tests', () => {
@@ -493,5 +494,42 @@ describe('Coin Top-Up Wallet Demo Store Integration Tests', () => {
     const res = await request('/css/../../package.json');
     // Traversal should not return package.json content with 200
     assert.ok(res.status === 404 || res.status === 502 || !res.body.includes('"name": "neurosky-pay"'));
+  });
+});
+
+describe('Demo store public URL resolution (regression: a VPS built its return URL from localhost)', () => {
+  const KEYS = ['COIN_STORE_PUBLIC_URL', 'BASE_DEMO_STORE_URL', 'STORE_PORT'];
+  let saved;
+
+  before(() => {
+    saved = Object.fromEntries(KEYS.map(key => [key, process.env[key]]));
+  });
+
+  after(() => {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  const makeStore = () => new CoinWalletStoreServer({ webhookSecret: 'test-secret', gatewayApiUrl: 'http://127.0.0.1:1' });
+
+  test('uses BASE_DEMO_STORE_URL (trailing slash stripped) when COIN_STORE_PUBLIC_URL is not set', () => {
+    delete process.env.COIN_STORE_PUBLIC_URL;
+    process.env.BASE_DEMO_STORE_URL = 'https://pay-store.example.test/';
+    assert.equal(makeStore().publicBaseUrl, 'https://pay-store.example.test');
+  });
+
+  test('COIN_STORE_PUBLIC_URL still wins over BASE_DEMO_STORE_URL', () => {
+    process.env.COIN_STORE_PUBLIC_URL = 'https://shop.example.test';
+    process.env.BASE_DEMO_STORE_URL = 'https://pay-store.example.test';
+    assert.equal(makeStore().publicBaseUrl, 'https://shop.example.test');
+  });
+
+  test('falls back to the local development store when neither is configured', () => {
+    delete process.env.COIN_STORE_PUBLIC_URL;
+    delete process.env.BASE_DEMO_STORE_URL;
+    delete process.env.STORE_PORT;
+    assert.equal(makeStore().publicBaseUrl, 'http://localhost:5000');
   });
 });

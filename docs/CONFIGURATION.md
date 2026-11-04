@@ -25,6 +25,7 @@
 | `OBSERVER_API_TOKEN` | auto-generated | Bearer token the local Gmail/SMS observers use to submit observations (`data/.secrets/observer_api_token`) |
 | `COIN_STORE_WEBHOOK_SECRET` | auto-generated | Webhook secret seeded for the default merchant and used by the demo coin store (`data/.secrets/coin_store_webhook_secret`) |
 | `COIN_STORE_WEBHOOK_URL` | `<BASE_DEMO_STORE_URL>/api/webhook`, else `http://localhost:5000/api/webhook` | Webhook URL seeded for the default (demo store) merchant on first boot. On a public deployment it must be a public URL, because loopback/private webhook targets are rejected unless `NEUROSKY_ALLOW_PRIVATE_WEBHOOKS=true` |
+| `COIN_STORE_PUBLIC_URL` | `BASE_DEMO_STORE_URL`, else `http://localhost:5000` | Public origin of the demo coin store. Its post-payment `returnUrl` is built from this value, so it must be listed in `NEUROSKY_ALLOWED_RETURN_ORIGINS` |
 | `NEUROSKY_EXPOSE_DEV_OTP` | unset | Set to `true` for local development to get the OTP in the `send-otp` response. Ignored when `NODE_ENV=production` |
 | `NEUROSKY_ALLOW_DEV_TOOLS` | unset | Developer test-mode / simulator endpoints (`/admin/dev/*`, `simulate-observation`) are refused when `NODE_ENV=production` unless this is `true` |
 | `GMAIL_REDIRECT_URI` | derived | Gmail OAuth redirect URI. Defaults to `<gmail host from your configured domain>/oauth/callback` |

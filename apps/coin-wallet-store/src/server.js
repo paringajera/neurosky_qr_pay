@@ -110,7 +110,13 @@ export class CoinWalletStoreServer {
     // Canonical public origin of this store. Post-payment return URLs are built from this
     // value rather than from the request's Host / X-Forwarded-* headers, which are
     // attacker-controllable and would otherwise allow redirecting paying customers elsewhere.
-    let pubUrl = options.publicBaseUrl || process.env.COIN_STORE_PUBLIC_URL || `http://localhost:${process.env.STORE_PORT || 5000}`;
+    // COIN_STORE_PUBLIC_URL wins; BASE_DEMO_STORE_URL (the public demo-store URL every deployment already
+    // configures) comes next, so a VPS does not silently fall back to localhost and have its return URL
+    // rejected by the gateway's NEUROSKY_ALLOWED_RETURN_ORIGINS allow-list.
+    let pubUrl = options.publicBaseUrl
+      || process.env.COIN_STORE_PUBLIC_URL
+      || process.env.BASE_DEMO_STORE_URL
+      || `http://localhost:${process.env.STORE_PORT || 5000}`;
     while (pubUrl.endsWith('/')) {
       pubUrl = pubUrl.slice(0, -1);
     }
@@ -613,6 +619,9 @@ export class CoinWalletStoreServer {
               checkoutUrl: resolvedCheckoutUrl
             }));
           } catch (err) {
+            // The gateway's reason (allow-list, observer gate, credentials) stays server-side; log it so the
+            // operator can see why the generic message appeared.
+            console.error('[Coin Wallet Store] Unable to create payment:', err && err.message ? err.message : err);
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Unable to create payment' }));
           }
