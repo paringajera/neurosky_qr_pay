@@ -67,6 +67,20 @@ The installer (idempotent, safe to re-run):
 - installs `/etc/caddy/Caddyfile` and reloads Caddy;
 - opens only ports 22/80/443 in `ufw` and schedules a nightly database backup at 02:15.
 
+**Keep the credentials you already use.** If you want the server to use the same admin token, Android
+enrollment secret and Gmail OAuth client as the `.env` on your workstation, copy that file to the server
+(for example `scp .env root@<vps-ip>:/root/workstation.env`) and pass it to the installer:
+
+```bash
+SEED_ENV_FILE=/root/workstation.env bash /opt/neurosky-pay/deploy/hostinger-vps/install.sh example.com pay
+```
+
+Only credential keys are copied (`ADMIN_API_TOKEN`, `ANDROID_ENROLLMENT_SECRET`, `OBSERVER_API_TOKEN`,
+`ENCRYPTION_MASTER_KEY`, `JWT_SECRET`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`); URLs, ports and mode stay
+production values. The same can be done later with
+`bash deploy/hostinger-vps/apply-env-credentials.sh /root/workstation.env` followed by a restart.
+Never commit `.env` to git to move it: the server would pull a localhost configuration over its own.
+
 ## 4. First login and configuration
 
 1. Read the admin token on the server and keep it somewhere safe:
@@ -100,6 +114,7 @@ The installer (idempotent, safe to re-run):
 | Health checks             | `curl http://127.0.0.1:6100/health` (and 7000, 6001, 6003, 5000, 8090) |
 | Update to latest code     | `bash /opt/neurosky-pay/deploy/hostinger-vps/update.sh` |
 | Manual backup             | `APP_DIR=/opt/neurosky-pay bash /opt/neurosky-pay/deploy/hostinger-vps/backup.sh` |
+| Reuse workstation credentials | `bash /opt/neurosky-pay/deploy/hostinger-vps/apply-env-credentials.sh /root/workstation.env && systemctl restart neurosky-pay` |
 | Backups                   | `/opt/neurosky-pay/backups/` (nightly, 14 days kept) |
 | Restore a backup          | stop the service, `gunzip -c backups/<file>.gz > data/neurosky_pay.sqlite`, delete `data/neurosky_pay.sqlite-wal` and `-shm`, start the service |
 | Caddy / certificate logs  | `journalctl -u caddy -f` |

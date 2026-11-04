@@ -27,6 +27,9 @@
 #   APP_DIR (default /opt/neurosky-pay)   APP_USER (default neurosky)
 #   REPO_URL (default https://github.com/paringajera/neurosky_qr_pay.git)   BRANCH (default main)
 #   NODE_MAJOR (default 24)               ACME_EMAIL (default admin@<base-domain>)
+#   SEED_ENV_FILE (unset)  path to an existing .env whose credentials (admin token, Android enrollment
+#                          secret, Gmail OAuth client, ...) are copied into the production .env instead of
+#                          generating new ones; see apply-env-credentials.sh for the exact key list.
 set -euo pipefail
 
 DOMAIN="${1:-}"
@@ -126,11 +129,18 @@ else
   unset ENCRYPTION_MASTER_KEY JWT_SECRET ADMIN_API_TOKEN
   echo "Rendered $ENV_FILE with freshly generated secrets."
 fi
+if [ -n "${SEED_ENV_FILE:-}" ]; then
+  [ -f "$SEED_ENV_FILE" ] || die "SEED_ENV_FILE=$SEED_ENV_FILE does not exist."
+  echo "Reusing credentials from $SEED_ENV_FILE:"
+  bash "$KIT_DIR/apply-env-credentials.sh" "$SEED_ENV_FILE" "$ENV_FILE"
+  chown "$APP_USER:$APP_USER" "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+fi
 
 log "5/7 Installing systemd service"
 sed -e "s#__APP_DIR__#${APP_DIR}#g" -e "s#__APP_USER__#${APP_USER}#g" \
   "$KIT_DIR/neurosky-pay.service" > /etc/systemd/system/neurosky-pay.service
-chmod +x "$KIT_DIR/backup.sh" "$KIT_DIR/update.sh" 2>/dev/null || true
+chmod +x "$KIT_DIR/backup.sh" "$KIT_DIR/update.sh" "$KIT_DIR/apply-env-credentials.sh" 2>/dev/null || true
 systemctl daemon-reload
 systemctl enable neurosky-pay >/dev/null
 systemctl restart neurosky-pay
