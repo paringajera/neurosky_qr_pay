@@ -82,3 +82,30 @@ describe('Merchant Admin environment defaults follow the real runtime (regressio
     assert.strictEqual(body.envMode, 'localhost', 'a stored envMode must not be overridden by the runtime default');
   });
 });
+
+describe('Default demo-store merchant webhook is seeded from the configured store origin', () => {
+  let apiInstance;
+  let testDb;
+  let savedEnv;
+
+  before(async () => {
+    savedEnv = snapshotEnv();
+    delete process.env.COIN_STORE_WEBHOOK_URL;
+    process.env.BASE_DEMO_STORE_URL = 'https://pay-store.example.test/';
+    testDb = new Database({ inMemory: true });
+    apiInstance = await startPaymentApi(6215, testDb);
+  });
+
+  after(async () => {
+    restoreEnv(savedEnv);
+    if (apiInstance) await apiInstance.close();
+    if (testDb) testDb.close();
+  });
+
+  it('seeds <BASE_DEMO_STORE_URL>/api/webhook instead of a loopback URL', async () => {
+    const res = await authFetch(`http://localhost:6215/api/v1/admin/merchant-settings?merchantId=${MERCHANT_ID}`);
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.webhookUrl, 'https://pay-store.example.test/api/webhook');
+  });
+});

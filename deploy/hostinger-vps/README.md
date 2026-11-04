@@ -87,7 +87,10 @@ Never commit `.env` to git to move it: the server would pull a localhost configu
    ```bash
    grep '^ADMIN_API_TOKEN=' /opt/neurosky-pay/.env
    ```
-2. Open `https://pay-admin.example.com`, paste the token in the unlock box.
+2. Open `https://pay-admin.example.com`, paste the token in the unlock box. The header badge must read
+   **PRODUCTION** with your domain. If it says LOCALHOST, open **Developer & Infrastructure Hub → Environment**,
+   enter the base domain and prefix and select **Production Mode** before saving anything else, otherwise the
+   first save stores localhost URLs for checkout links and the Android pairing QR.
 3. **Store Settings → Receiving Accounts**: add your UPI ID (VPA) and activate it.
 4. Put that account's ID into `.env` so the Gmail observer can start, then restart:
    ```bash
@@ -142,3 +145,5 @@ Never commit `.env` to git to move it: the server would pull a localhost configu
 | Gmail observer stays STANDBY | `RECEIVING_ACCOUNT_ID` not set, or the redirect URI in Google Cloud does not match exactly |
 | Android app cannot pair | the phone must reach `https://pay-api.example.com`; HTTP without TLS is blocked by the app |
 | Checkout works but the merchant site cannot open the modal | add the storefront origin to `CHECKOUT_FRAME_ANCESTORS` and `NEUROSKY_ALLOWED_ORIGINS` |
+| Saving settings fails with "Webhook URL must not point to a loopback or private network address" | the merchant webhook URL is still `http://localhost:5000/api/webhook` (databases seeded before `COIN_STORE_WEBHOOK_URL` was in the template). Set it to `https://pay-store.example.com/api/webhook` in Developer Hub → Webhooks & Secrets, or set `NEUROSKY_ALLOW_PRIVATE_WEBHOOKS=true` in `.env` and restart |
+| Header badge says LOCALHOST, checkout links or the pairing QR point at localhost | Developer Hub → Environment: enter the base domain and prefix and select Production Mode, then save again |

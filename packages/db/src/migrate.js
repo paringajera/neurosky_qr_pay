@@ -174,6 +174,13 @@ export function runMigrations(targetDb) {
   const merchantRepo = new MerchantRepository(db);
   const existing = merchantRepo.findAll();
 
+  // Webhook target seeded for the demo-store merchant: an explicit COIN_STORE_WEBHOOK_URL wins, then the
+  // configured demo store origin (public on a VPS behind HTTPS), then the local development store. A
+  // loopback target is rejected by the outbound webhook guard unless NEUROSKY_ALLOW_PRIVATE_WEBHOOKS=true.
+  const demoStoreUrl = (process.env.BASE_DEMO_STORE_URL || '').trim().replace(/\/+$/, '');
+  const defaultStoreWebhookUrl = process.env.COIN_STORE_WEBHOOK_URL
+    || (demoStoreUrl ? `${demoStoreUrl}/api/webhook` : 'http://localhost:5000/api/webhook');
+
   let defaultMerchant;
   if (existing.length === 0) {
     const branding = resolveDefaultBranding();
@@ -188,7 +195,7 @@ export function runMigrations(targetDb) {
       slug,
       contactEmail,
       contactPhone,
-      webhookUrl: process.env.COIN_STORE_WEBHOOK_URL || 'http://localhost:5000/api/webhook',
+      webhookUrl: defaultStoreWebhookUrl,
       webhookSecret: getCoinStoreWebhookSecret(),
       branding: {
         appName: branding.appName,
@@ -202,7 +209,7 @@ export function runMigrations(targetDb) {
     defaultMerchant = existing[0];
     if (!defaultMerchant.webhookSecret) {
       merchantRepo.update(defaultMerchant.id, {
-        webhookUrl: 'http://localhost:5000/api/webhook',
+        webhookUrl: defaultStoreWebhookUrl,
         webhookSecret: getCoinStoreWebhookSecret()
       });
     } else if (defaultMerchant.webhookSecret === LEGACY_DEFAULT_WEBHOOK_SECRET) {
