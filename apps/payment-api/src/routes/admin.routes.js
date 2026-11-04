@@ -93,6 +93,22 @@ function resolveSellingModeAndMethods(body, currentBranding = {}) {
  *   queueEngine: import('@neurosky/core').QueueEngine
  * }} ctx
  */
+/**
+ * Defaults for the dashboard's environment card while the merchant has not chosen one yet.
+ * They mirror the process the API actually runs in, so a production VPS does not present a
+ * localhost configuration that the first "Save" would then persist (and with it localhost
+ * checkout links and a localhost Android pairing QR).
+ */
+function runtimeEnvDefaults() {
+  const mode = String(process.env.NEUROSKY_MODE || '').trim().toLowerCase();
+  const production = mode === 'production' || (!mode && process.env.NODE_ENV === 'production');
+  return {
+    envMode: production ? 'production' : 'localhost',
+    domain: (process.env.CLOUDFLARE_DOMAIN || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, ''),
+    prefix: ((process.env.DEPLOYMENT_PREFIX || 'pay').trim().toLowerCase().replace(/[^a-z0-9-_]/g, '') || 'pay')
+  };
+}
+
 export function registerAdminRoutes(server, ctx) {
   const resolveMerchant = (req, explicitId = null) => {
     const targetId = explicitId || (req ? (req.query?.merchantId || req.headers?.['x-merchant-id']) : null);
@@ -1004,9 +1020,10 @@ export function registerAdminRoutes(server, ctx) {
     const supportMobiles = branding.supportMobiles || (merchant.contactPhone ? [merchant.contactPhone] : []);
     const privacyPolicyUrl = branding.privacyPolicyUrl || '';
 
-    const envMode = branding.envMode || 'localhost';
-    const domainPrefix = (branding.deploymentPrefix || branding.domainPrefix || 'pay').trim().toLowerCase();
-    const domainTld = (branding.cloudflareDomain || branding.domainTld || '').trim().toLowerCase();
+    const runtimeDefaults = runtimeEnvDefaults();
+    const envMode = branding.envMode || runtimeDefaults.envMode;
+    const domainPrefix = (branding.deploymentPrefix || branding.domainPrefix || runtimeDefaults.prefix).trim().toLowerCase();
+    const domainTld = (branding.cloudflareDomain || branding.domainTld || runtimeDefaults.domain).trim().toLowerCase();
     const cloudflareDomain = domainTld;
     const deploymentPrefix = domainPrefix;
     const customDomain = branding.customDomain || (cloudflareDomain ? `https://${deploymentPrefix}.${cloudflareDomain}` : '');
@@ -1231,7 +1248,7 @@ export function registerAdminRoutes(server, ctx) {
       codEnabled: (updated.branding?.enabledPaymentMethods || []).includes('COD'),
       cashEnabled: (updated.branding?.enabledPaymentMethods || []).includes('CASH_COUNTER'),
       cardEnabled: (updated.branding?.enabledPaymentMethods || []).includes('CARD_COUNTER'),
-      envMode: updated.branding?.envMode || 'localhost',
+      envMode: updated.branding?.envMode || runtimeEnvDefaults().envMode,
       domainPrefix: updated.branding?.domainPrefix || 'pay',
       domainTld: updated.branding?.domainTld || '',
       customDomain: updated.branding?.customDomain || '',
