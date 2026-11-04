@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HttpServer } from '../server.js';
-import { ObservationNormalizer, BankSmsParser, BankEmailParser, generateQrSvg } from '@neurosky/core';
+import { ObservationNormalizer, BankSmsParser, BankEmailParser, generateQrSvg, dryRunBankSms } from '@neurosky/core';
 import { toRupeesString, toPaise, verifyHmac, resolveRuntimeUrls, resolveSecret, safeEqual, hasBearer, getObserverToken, isAllowedNotificationPackage } from '@neurosky/common';
 import { isAdminRequest } from '../auth-guard.js';
 
@@ -776,6 +776,26 @@ export function registerPollerRoutes(server, ctx) {
   });
 
   // GET /api/v1/admin/sms-gateway/devices
+  // --- MERCHANT ADMIN: DRY-RUN BANK SMS PARSER TEST ---
+  // Lets the operator paste a real bank SMS and see whether the phone would forward it, what the
+  // server parser extracts and whether the mandatory transaction reference is present. Admin-only
+  // through the /api/v1/admin/ prefix. Nothing is stored and no payment session is touched, unlike
+  // POST /api/v1/observers/sms which needs a paired device and records a real observation.
+  server.post('/api/v1/admin/sms-gateway/parse-test', async (req, res) => {
+    const body = await HttpServer.parseBody(req);
+    const sender = String(body.sender || '').trim();
+    const text = String(body.body || body.text || body.sms || '').trim();
+    if (!text) {
+      HttpServer.json(res, 400, { error: 'SMS text is required.', code: 'MISSING_SMS_TEXT' });
+      return;
+    }
+    if (text.length > 4096) {
+      HttpServer.json(res, 400, { error: 'SMS text is too long (max 4096 characters).', code: 'SMS_TEXT_TOO_LONG' });
+      return;
+    }
+    HttpServer.json(res, 200, { dryRun: true, ...dryRunBankSms({ sender, text, timestamp: body.timestamp }) });
+  });
+
   server.get('/api/v1/admin/sms-gateway/devices', async (req, res) => {
     let merchant = req.query.merchantId ? (ctx.merchantRepo ? ctx.merchantRepo.findById(req.query.merchantId) : null) : null;
     if (!merchant && ctx.merchantRepo) merchant = ctx.merchantRepo.getDefault ? ctx.merchantRepo.getDefault() : (ctx.merchantRepo.findById('00000000-0000-0000-0000-000000000001') || ctx.merchantRepo.findAll()[0]);

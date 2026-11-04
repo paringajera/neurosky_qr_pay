@@ -120,6 +120,23 @@ To ensure Android OEMs (Xiaomi MIUI, Samsung OneUI, OnePlus OxygenOS, Realme/Opp
 
 ---
 
+## 4b. Check your bank's SMS format before paying
+
+There is no SMS template to configure: the phone filter and the server parser read any Indian bank
+credit alert that has a bank sender ID (for example `VM-HDFCBK`), a credit word (`credited`,
+`received`, `deposited`), an amount with a currency prefix (`Rs.1.00`, `INR 1.00`, `₹1.00`) and the
+12-digit UPI reference (`UPI Ref No 431234567890`). To confirm your bank's wording without paying:
+
+1. Merchant Admin → **Developer & Infrastructure Hub → Android SMS Hub → Test Bank SMS Parser**.
+2. Paste the sender ID and the full text of a real credit SMS from your bank, then click **Dispatch**.
+3. The result is a dry run (nothing is recorded, no payment is touched) with three stages: whether the
+   phone app would forward the message, what the server parser extracts (amount, reference, payer VPA)
+   and whether the mandatory 12-digit reference is present. **READY** means a real payment with this
+   format is matched by amount; otherwise the hints say what the message lacks.
+
+The same check is available to scripts as `POST /api/v1/admin/sms-gateway/parse-test` with the admin
+token and a JSON body `{ "sender": "VM-HDFCBK", "body": "<sms text>" }`.
+
 ## 5. Testing with ADB Notifications (Simulation on Real Phone)
 
 You can simulate real incoming UPI notifications directly on a connected physical phone without spending real money:

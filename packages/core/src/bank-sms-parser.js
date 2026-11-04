@@ -100,12 +100,22 @@ export class BankSmsParser {
    * } | null}
    */
   static parse(sms) {
+    return BankSmsParser.inspect(sms).parsed;
+  }
+
+  /**
+   * Same checks as parse(), but reports why a message was rejected so operators can test their
+   * bank's SMS format. `failure` is null when `parsed` is set.
+   * @param {{ text?: string, sender?: string, timestamp?: number | string | Date }} sms
+   * @returns {{ parsed: ReturnType<typeof BankSmsParser.parse>, failure: null | 'EMPTY_TEXT' | 'NO_CREDIT_KEYWORD' | 'DEBIT_CONTEXT' | 'NO_AMOUNT' }}
+   */
+  static inspect(sms) {
     // Bank credit SMS are short. Capping the text bounds the cost of the reference-extraction
     // regexes, which are scanned from every start offset and would otherwise let one
     // oversized message block the event loop (ReDoS / DoS).
     const MAX_SCAN_CHARS = 4096;
-    const text = (sms.text || '').trim().slice(0, MAX_SCAN_CHARS);
-    if (!text) return null;
+    const text = (sms?.text || '').trim().slice(0, MAX_SCAN_CHARS);
+    if (!text) return { parsed: null, failure: 'EMPTY_TEXT' };
 
     // Check if SMS represents an incoming credit. A bare "payment" or "transferred" without
     // credit context is rejected, but "transferred to your account" and "payment of Rs 500"
@@ -118,7 +128,7 @@ export class BankSmsParser {
       'i'
     );
     if (!creditKeywords.test(text)) {
-      return null;
+      return { parsed: null, failure: 'NO_CREDIT_KEYWORD' };
     }
 
     // Reject debit notifications:
@@ -129,13 +139,13 @@ export class BankSmsParser {
     const debitIdx = text.search(/\b(?:debited|withdrawn|deducted|spent|paid rs|sent rs)\b/i);
     const creditIdx = text.search(/\b(?:credited|received|deposit|deposited)\b/i);
     if (debitIdx !== -1 && (creditIdx === -1 || debitIdx < creditIdx)) {
-      return null;
+      return { parsed: null, failure: 'DEBIT_CONTEXT' };
     }
 
     // 1. Extract Amount using Intelligent Multi-Pattern Extractor
     const extractedAmount = extractIntelligentAmount(text);
     if (!extractedAmount) {
-      return null;
+      return { parsed: null, failure: 'NO_AMOUNT' };
     }
 
     // 2. Extract Bank Reference / UTR / RRN (including FamPay Transaction IDs)
@@ -172,12 +182,15 @@ export class BankSmsParser {
     }
 
     return {
-      amountPaise: extractedAmount.amountPaise,
-      amount: extractedAmount.amountStr,
-      bankReferenceNumber: bankRef,
-      senderVpa,
-      observedAt,
-      rawText: text
+      parsed: {
+        amountPaise: extractedAmount.amountPaise,
+        amount: extractedAmount.amountStr,
+        bankReferenceNumber: bankRef,
+        senderVpa,
+        observedAt,
+        rawText: text
+      },
+      failure: null
     };
   }
 }

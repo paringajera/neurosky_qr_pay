@@ -3193,19 +3193,19 @@
             </div>
           </div>
 
-          <!-- Interactive Test Bank SMS Sender -->
+          <!-- Interactive Test Bank SMS Parser (admin-only dry run) -->
           <div style="background:var(--bg-box); border:1px solid var(--border); border-radius:0.5rem; padding:1rem;">
-            <div style="font-size:0.85rem; font-weight:700; color:var(--info); margin-bottom:0.5rem;">🧪 Test Bank SMS
-              Parser</div>
+            <div style="font-size:0.85rem; font-weight:700; color:var(--info); margin-bottom:0.25rem;">🧪 Test Bank SMS Parser (dry run)</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem;">Paste the sender ID and the text of a real credit SMS from your bank. Nothing is recorded: the result shows whether the phone app would forward it, what the server parser extracts and whether the 12-digit UPI reference is present.</div>
             <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; flex-wrap:wrap;">
-              <input type="text" id="testSmsSender" value="HDFCBK" placeholder="Sender (e.g. HDFCBK)"
-                style="width:120px;" />
+              <input type="text" id="testSmsSender" value="VM-HDFCBK" placeholder="Sender ID (e.g. VM-HDFCBK)"
+                style="width:160px;" />
               <input type="text" id="testSmsBody"
-                value="Dear Customer, A/C *1234 credited by Rs 500.00 on 30-Sep-26 by UPI/9876543210/REF987654321 - HDFC Bank"
-                placeholder="SMS Body" style="flex:1; min-width:240px;" />
-              <button class="btn btn-primary" onclick="sendTestBankSms()">Dispatch</button>
+                value="Rs.1.00 credited to A/c XX1234 on 04-11-26 by a/c linked to VPA rahul@okaxis (UPI Ref No 431234567890) - HDFC Bank"
+                placeholder="Full SMS text" style="flex:1; min-width:240px;" />
+              <button class="btn btn-primary" onclick="sendTestBankSms()">Check SMS</button>
             </div>
-            <div id="testSmsResult" style="font-size:0.78rem; color:var(--text-muted);"></div>
+            <div id="testSmsResult" style="font-size:0.78rem; color:var(--text-muted); line-height:1.55;"></div>
           </div>
         </div>
       </div>
@@ -5846,28 +5846,42 @@
     }
 
     async function sendTestBankSms() {
-      const sender = (document.getElementById('testSmsSender')?.value || 'HDFCBK').trim();
+      const sender = (document.getElementById('testSmsSender')?.value || '').trim();
       const body = (document.getElementById('testSmsBody')?.value || '').trim();
       const resBox = document.getElementById('testSmsResult');
-      if (!body) return alert('Please enter SMS text.');
+      if (!body) return alert('Please paste the SMS text.');
 
-      if (resBox) resBox.textContent = 'Dispatching test SMS...';
+      if (resBox) { resBox.style.color = 'var(--text-muted)'; resBox.textContent = 'Checking SMS format (dry run, nothing is recorded)...'; }
       try {
-        const res = await fetch(`${API_BASE}/api/v1/observers/sms`, {
+        // Admin-only dry run: the phone filter, the server parser and the reference check are evaluated
+        // without storing an observation. The real ingest route needs a paired device and its HMAC.
+        const res = await fetch(`${API_BASE}/api/v1/admin/sms-gateway/parse-test`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sender, body, timestamp: Date.now() })
         });
-        const data = await res.json();
-        if (resBox) {
-          if (res.ok) {
-            resBox.style.color = 'var(--success)';
-            resBox.textContent = `✅ Parsed successfully! Amount: ₹${data.event?.amountPaise ? (data.event.amountPaise / 100) : 'N/A'}, Ref: ${data.event?.refId || 'N/A'}`;
-          } else {
-            resBox.style.color = 'var(--danger)';
-            resBox.textContent = `⚠️ Error: ${data.error || 'Failed to parse'}`;
-          }
+        const data = await res.json().catch(() => ({}));
+        if (!resBox) return;
+        if (!res.ok) {
+          resBox.style.color = 'var(--danger)';
+          resBox.textContent = `⚠️ ${data.error || `Request failed (HTTP ${res.status})`}`;
+          return;
         }
+        const mark = (flag) => (flag ? '✅' : '❌');
+        const rupees = (paise) => (typeof paise === 'number' ? `₹${(paise / 100).toFixed(2)}` : '-');
+        const lines = [
+          `${mark(data.phone?.forwarded)} Phone app: ${data.phone?.forwarded ? 'would forward this SMS' : 'would NOT forward it'} (${escapeHtml(data.phone?.reason || '-')})`,
+          `${mark(data.parser?.parsed)} Server parser: ${data.parser?.parsed
+            ? `amount ${rupees(data.parser.amountPaise)}, reference ${escapeHtml(data.parser.bankReferenceNumber || 'none')}, payer VPA ${escapeHtml(data.parser.senderVpa || 'none')}`
+            : `rejected (${escapeHtml(data.parser?.failure || '-')})`}`,
+          `${mark(data.reference?.present)} Transaction reference: ${data.reference?.present
+            ? `${escapeHtml(data.reference.value)}${data.reference.isTwelveDigit ? ' (12-digit UPI reference)' : ' (not a 12-digit UTR)'}`
+            : 'missing'}`,
+          `<strong>Verdict: ${escapeHtml(data.verdict || '-')}.</strong> ${escapeHtml(data.summary || '')}`
+        ];
+        for (const hint of (data.hints || [])) lines.push(`💡 ${escapeHtml(hint)}`);
+        resBox.style.color = data.verdict === 'READY' ? 'var(--success)' : 'var(--danger)';
+        resBox.innerHTML = lines.join('<br>');
       } catch (e) {
         if (resBox) { resBox.style.color = 'var(--danger)'; resBox.textContent = 'Network error.'; }
       }

@@ -102,6 +102,8 @@ Never commit `.env` to git to move it: the server would pull a localhost configu
    (see `docs/google_cloud_console_setup_guide.md`).
 6. **Android SMS gateway**: Developer Hub → Android SMS Hub → download the APK, install it on the phone
    that receives the bank SMS, scan the pairing QR. The APK talks to `https://pay-api.example.com`.
+   Before the first real payment, paste one of your bank's credit SMS into the **Test Bank SMS Parser**
+   box on the same page: it dry-runs the phone filter and the server parser without recording anything.
 7. **Merchant site**: add the script tag shown in Store Settings → Brand Identity, create payments
    server-side with your merchant key (`X-Merchant-Key`), and fulfil orders only on the `RECONCILED`
    webhook (`docs/MERCHANT_INTEGRATION.md`). Every storefront origin must be listed in
