@@ -145,26 +145,28 @@ NeuroSky.pay({
 
 ### 3. Normalized Browser Events
 
-The frontend script emits normalized DOM `CustomEvent`s on `window`:
+The frontend script emits normalized DOM `CustomEvent`s on `window`. They mirror what the checkout iframe reports and are for **UI feedback only**.
 
-| Event Name                 | Trigger Condition                                       |
-| :------------------------- | :------------------------------------------------------ |
-| `neurosky:payment:success`    | Payment verified by banking observers                   |
-| `neurosky:payment:failed`     | Payment declined, wrong amount, or verification timeout |
-| `neurosky:payment:suspicious` | Payment flagged by security/risk engine                 |
-| `neurosky:payment:expired`    | 5-minute active payment window expired                  |
-| `neurosky:payment:cancelled`  | Customer cancelled or dismissed the checkout            |
-| `neurosky:payment:result`     | Unified event dispatched on any outcome                 |
+| Event Name                    | Trigger Condition                                                                                                   |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------------ |
+| `neurosky:payment:observed`   | A bank SMS / Gmail alert matched this UPI session (`status: "OBSERVED_SUCCESS"`, `settlement_state: "NOT_RECONCILED"`) |
+| `neurosky:payment:success`    | `status: "SUCCESS"` for a COD order or a confirmed counter payment, or `status: "RECONCILED"` once the admin's bank-statement import matched the UPI payment |
+| `neurosky:payment:suspicious` | `status: "MANUAL_REVIEW"` (late or ambiguous alert) or `status: "SUSPICIOUS"` (risk engine)                        |
+| `neurosky:payment:failed`     | Verification window elapsed without a matching alert, wrong amount, or declined                                     |
+| `neurosky:payment:expired`    | 5-minute active payment window expired                                                                              |
+| `neurosky:payment:cancelled`  | Customer cancelled or dismissed the checkout                                                                        |
+| `neurosky:payment:result`     | Unified event dispatched on any outcome                                                                             |
 
 #### Payload Contract (`event.detail`):
 
 ```javascript
 {
-  "status": "SUCCESS",              // 'SUCCESS' | 'FAILED' | 'SUSPICIOUS' | 'EXPIRED' | 'CANCELLED'
+  "status": "OBSERVED_SUCCESS",     // 'OBSERVED_SUCCESS' | 'RECONCILED' | 'MANUAL_REVIEW' | 'SUCCESS' | 'FAILED' | 'SUSPICIOUS' | 'EXPIRED' | 'CANCELLED'
   "order_id": "ORDER-1001",
   "amount_received": 499.00,
   "payment_mode": "UPI",            // 'UPI' | 'COD' | 'CASH_COUNTER' | 'CARD_COUNTER'
-  "utr": "123456789012",            // 12-digit bank reference number
+  "utr": "123456789012",            // 12-digit bank reference number ('' when none)
+  "settlement_state": "NOT_RECONCILED", // UPI outcomes only: 'NOT_RECONCILED' | 'RECONCILED' | 'MANUAL_REVIEW'
   "timestamp": "2026-10-07T12:00:00.000Z",
   "metadata": { "sku": "TSHIRT-01" }
 }
@@ -178,34 +180,56 @@ The frontend script emits normalized DOM `CustomEvent`s on `window`:
 > **NEVER** mark orders as fulfilled or deliver digital goods based on browser events. Only fulfill orders after verifying the server-to-server webhook!  
 > **RAW BODY REQUIREMENT**: Request bytes must **NOT** be parsed to JSON before HMAC calculation. Always compute HMAC over raw unparsed request bytes!
 
+#### When a webhook is sent
+
+One signed `POST` per payment **per event**; a payment can receive several events over its life (for example `OBSERVED_SUCCESS` first and `RECONCILED` days later).
+
+| `event` / `X-Gateway-Event` | Sent when                                                                                         | `settlementState`     |
+| :-------------------------- | :------------------------------------------------------------------------------------------------ | :-------------------- |
+| `OBSERVED_SUCCESS`          | A bank SMS / Gmail credit alert was attributed to the UPI session (observer match, not a bank settlement) | `NOT_RECONCILED`      |
+| `RECONCILED`                | An admin imported a bank-statement CSV and one line matched this UPI payment (account, paise, 12-digit reference). The only event that proves money arrived | `RECONCILED`          |
+| `MANUAL_REVIEW`             | The alert was late or ambiguous; an operator must decide                                           | `MANUAL_REVIEW`       |
+| `SUCCESS`                   | A **Cash on Delivery** order was placed or a counter payment (`CASH_COUNTER` / `CARD_COUNTER`) was confirmed. Never sent for UPI | `NOT_BANK_SETTLEMENT` |
+| `FAILED`                    | The verification window elapsed with no matching alert                                            | `NOT_APPLICABLE`      |
+| `EXPIRED`                   | The 5-minute payment window elapsed                                                               | `NOT_APPLICABLE`      |
+| `CANCELLED`                 | The customer cancelled the checkout                                                               | `NOT_APPLICABLE`      |
+
 #### Webhook Request Specifications:
 
 - **HTTP Method**: `POST`
 - **Headers**:
   - `Content-Type: application/json`
-  - `X-Gateway-Event: SUCCESS`
-  - `X-Gateway-Signature: sha256=<64_char_hex_hash>`
-  - `X-Gateway-Delivery-Id: <uuid>`
-  - `X-Gateway-Timestamp: <ms>`
+  - `X-Gateway-Event: <event>`
+  - `X-Gateway-Signature: sha256=<hex HMAC-SHA256(rawBody, webhookSecret)>`
+  - `X-Gateway-Signature-V2: sha256=<hex HMAC-SHA256(timestamp + "." + rawBody, webhookSecret)>`
+  - `X-Gateway-Delivery-Id: <uuid>` (identical on every retry of the same delivery)
+  - `X-Gateway-Timestamp: <ms>` (equals `payload.timestamp`, identical on retries)
+- **Delivery**: first attempt immediately on the status change, 10-second timeout, any `2xx` counts as delivered, redirects are not followed. Failed deliveries are retried after 5 s, 30 s, 2 min, 10 min and 1 h, up to `WEBHOOK_MAX_RETRIES` (default 5) attempts in total, with the **same body and signature**. Pending deliveries survive a restart (`webhook_deliveries` table). Webhook URLs must be public; loopback and private addresses are rejected unless `NEUROSKY_ALLOW_PRIVATE_WEBHOOKS=true`.
 
 #### Payload Contract (`payload`):
 
 ```json
 {
-  "event": "SUCCESS",
+  "event": "OBSERVED_SUCCESS",
+  "deliveryId": "4f0a1b2c-6d7e-4f80-9a1b-2c3d4e5f6a7b",
+  "timestamp": 1762340000000,
   "paymentId": "c7942127-14e3-469a-9e4a-9359a16f903a",
   "orderId": "ORDER-1001",
+  "attemptId": "c7942127-14e3-469a-9e4a-9359a16f903a",
   "amount": "499.00",
   "amountPaise": 49900,
   "currency": "INR",
   "method": "UPI",
   "utr": "123456789012",
+  "verificationTag": "SMS_VERIFIED",
+  "verificationLevel": 1,
   "completedAt": "2026-10-07T12:00:00.000Z",
-  "metadata": { "sku": "TSHIRT-01" }
+  "metadata": { "sku": "TSHIRT-01" },
+  "settlementState": "NOT_RECONCILED"
 }
 ```
 
-> **PAYMENT METHOD RULE**: `event: "SUCCESS"` is also sent when a customer places a **Cash on Delivery** order (`method: "COD"`) or a counter payment is confirmed (`CASH_COUNTER` / `CARD_COUNTER`). For `COD` no money has been received yet. Always check `payload.method` before you treat an order as **paid**.
+> **PAYMENT METHOD RULE**: `event: "SUCCESS"` is sent **only** for `method: "COD"` (no money received yet) and for confirmed counter payments (`CASH_COUNTER` / `CARD_COUNTER`). A UPI payment never produces `SUCCESS`: it produces `OBSERVED_SUCCESS` when the bank alert matches and `RECONCILED` when the statement import confirms it. Always check `payload.event`, `payload.method` and `payload.settlementState` before you treat an order as **paid**.
 
 #### Node.js (Express) Webhook Verification Example:
 
@@ -230,12 +254,35 @@ app.post(
     }
 
     const payload = JSON.parse(req.body.toString("utf8"));
-    if (payload.event === "SUCCESS" && payload.method === "UPI") {
-      db.orders.markPaid(payload.orderId, {
-        utr: payload.utr,
-        amount: payload.amount,
-        amountPaise: payload.amountPaise,
-      });
+
+    // Retries replay the same deliveryId: process each delivery once.
+    if (db.webhookDeliveries.seen(payload.deliveryId)) {
+      return res.status(200).json({ received: true, duplicate: true });
+    }
+    db.webhookDeliveries.remember(payload.deliveryId);
+
+    switch (payload.event) {
+      case "OBSERVED_SUCCESS":
+        // Bank alert matched. Show "payment received, verifying"; do not ship yet.
+        db.orders.markObserved(payload.orderId, { utr: payload.utr, amountPaise: payload.amountPaise });
+        break;
+      case "RECONCILED":
+        if (payload.method === "UPI" && payload.settlementState === "RECONCILED") {
+          db.orders.markPaid(payload.orderId, { utr: payload.utr, amount: payload.amount, amountPaise: payload.amountPaise });
+        }
+        break;
+      case "SUCCESS":
+        // COD placed or counter payment confirmed; payload.method tells which.
+        db.orders.markPlaced(payload.orderId, { method: payload.method });
+        break;
+      case "MANUAL_REVIEW":
+        db.orders.markOnHold(payload.orderId);
+        break;
+      case "FAILED":
+      case "EXPIRED":
+      case "CANCELLED":
+        db.orders.markUnpaid(payload.orderId, { reason: payload.event });
+        break;
     }
 
     res.status(200).json({ received: true });
@@ -248,8 +295,8 @@ app.post(
 ### 5. Security & Architectural Invariants
 
 1. **No Public Force-Success Endpoint**:
-   - There is no endpoint that allows a client or developer to arbitrarily declare `SUCCESS`.
-   - `SUCCESS` is generated solely by the internal verification engine after matching a genuine bank SMS/Gmail observation.
+   - There is no endpoint that allows a client or developer to arbitrarily declare a payment outcome.
+   - `OBSERVED_SUCCESS` is generated solely by the internal verification engine after matching a genuine bank SMS/Gmail observation, and `RECONCILED` solely by the admin's bank-statement import. The developer simulator is refused in production unless `NEUROSKY_ALLOW_DEV_TOOLS=true`.
 2. **Never Expose Secret API Keys in Frontend**:
    - Only publishable public keys (e.g., `data-neurosky-key`) may appear in HTML/JS.
    - `webhookSecret`, database credentials, and observer tokens must remain strictly on the backend.
