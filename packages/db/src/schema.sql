@@ -182,6 +182,12 @@ CREATE TABLE IF NOT EXISTS android_devices (
     is_active BOOLEAN NOT NULL DEFAULT true,
     last_heartbeat_at TIMESTAMPTZ,
     last_observation_at TIMESTAMPTZ,
+    battery_percent INT,
+    is_charging BOOLEAN,
+    network_type VARCHAR(32),
+    app_version VARCHAR(64),
+    pending_sms_count INT,
+    offline_alerted_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

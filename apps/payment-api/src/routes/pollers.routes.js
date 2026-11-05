@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HttpServer } from '../server.js';
-import { ObservationNormalizer, BankSmsParser, BankEmailParser, generateQrSvg, dryRunBankSms } from '@neurosky/core';
+import { ObservationNormalizer, BankSmsParser, BankEmailParser, generateQrSvg, dryRunBankSms, normalizeDeviceTelemetry, recordAndroidHeartbeat, listAndroidDevices, ANDROID_HEARTBEAT_INTERVAL_MS } from '@neurosky/core';
 import { toRupeesString, toPaise, verifyHmac, resolveRuntimeUrls, resolveSecret, safeEqual, hasBearer, getObserverToken, isAllowedNotificationPackage } from '@neurosky/common';
 import { isAdminRequest } from '../auth-guard.js';
 
@@ -688,15 +688,22 @@ export function registerPollerRoutes(server, ctx) {
   // --- ANDROID HEARTBEAT HANDLER ---
   const handleAndroidHeartbeat = async (req, res) => {
     const body = await HttpServer.parseBody(req);
-    const deviceId = req.headers['x-device-id'] || body.deviceId;
+    const deviceId = String(req.headers['x-device-id'] || body.deviceId || '').trim();
 
+    // Telemetry is only trusted from heartbeat v2 (release 1.1.0+); older apps sent a fixed
+    // 100% / charging placeholder, which is stored as "unknown" instead.
+    let cameBackOnline = false;
     if (deviceId) {
-      ctx.db.execute('UPDATE android_devices SET last_heartbeat_at = datetime(\'now\') WHERE id = ?', [deviceId]);
+      const telemetry = normalizeDeviceTelemetry(body);
+      const result = recordAndroidHeartbeat({ db: ctx.db, auditRepo: ctx.auditRepo, eventEmitter: ctx.eventEmitter, deviceId, telemetry });
+      cameBackOnline = result.cameBackOnline;
     }
 
     HttpServer.json(res, 200, {
       status: 'HEARTBEAT_ACK',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      heartbeatIntervalMs: ANDROID_HEARTBEAT_INTERVAL_MS,
+      ...(cameBackOnline ? { recovered: true } : {})
     });
   };
 
@@ -734,30 +741,7 @@ export function registerPollerRoutes(server, ctx) {
     const pairingPayload = JSON.stringify(pairingPayloadObj);
     const qrSvg = generateQrSvg(pairingPayload, 260);
 
-    const rawDevices = ctx.db.query(`
-      SELECT id, device_name, device_model, is_active, last_heartbeat_at, last_observation_at, created_at
-      FROM android_devices
-      WHERE merchant_id = ? OR merchant_id = '00000000-0000-0000-0000-000000000001'
-      ORDER BY created_at DESC
-    `, [merchantId]);
-
-    const devices = (rawDevices || []).map(d => ({
-      id: d.id,
-      deviceId: d.id,
-      deviceName: d.device_name || d.device_model || 'Android Observer',
-      device_name: d.device_name || d.device_model || 'Android Observer',
-      deviceModel: d.device_model,
-      device_model: d.device_model,
-      isActive: Boolean(d.is_active),
-      is_active: d.is_active,
-      lastHeartbeatAt: d.last_heartbeat_at,
-      last_heartbeat_at: d.last_heartbeat_at,
-      lastObservationAt: d.last_observation_at,
-      last_observation_at: d.last_observation_at,
-      createdAt: d.created_at,
-      created_at: d.created_at,
-      pairedAt: d.created_at
-    }));
+    const devices = listAndroidDevices({ db: ctx.db, merchantId });
 
     HttpServer.json(res, 200, {
       qrSvg,
@@ -801,32 +785,16 @@ export function registerPollerRoutes(server, ctx) {
     if (!merchant && ctx.merchantRepo) merchant = ctx.merchantRepo.getDefault ? ctx.merchantRepo.getDefault() : (ctx.merchantRepo.findById('00000000-0000-0000-0000-000000000001') || ctx.merchantRepo.findAll()[0]);
     const merchantId = merchant ? merchant.id : (req.query.merchantId || '00000000-0000-0000-0000-000000000001');
 
-    const rawDevices = ctx.db.query(`
-      SELECT id, device_name, device_model, is_active, last_heartbeat_at, last_observation_at, created_at
-      FROM android_devices
-      WHERE merchant_id = ? OR merchant_id = '00000000-0000-0000-0000-000000000001'
-      ORDER BY created_at DESC
-    `, [merchantId]);
+    const devices = listAndroidDevices({ db: ctx.db, merchantId });
 
-    const devices = (rawDevices || []).map(d => ({
-      id: d.id,
-      deviceId: d.id,
-      deviceName: d.device_name || d.device_model || 'Android Observer',
-      device_name: d.device_name || d.device_model || 'Android Observer',
-      deviceModel: d.device_model,
-      device_model: d.device_model,
-      isActive: Boolean(d.is_active),
-      is_active: d.is_active,
-      lastHeartbeatAt: d.last_heartbeat_at,
-      last_heartbeat_at: d.last_heartbeat_at,
-      lastObservationAt: d.last_observation_at,
-      last_observation_at: d.last_observation_at,
-      createdAt: d.created_at,
-      created_at: d.created_at,
-      pairedAt: d.created_at
-    }));
-
-    HttpServer.json(res, 200, { devices });
+    const timeoutMs = devices.length ? devices[0].heartbeatTimeoutMs : undefined;
+    HttpServer.json(res, 200, {
+      devices,
+      heartbeatTimeoutMs: timeoutMs,
+      heartbeatIntervalMs: ANDROID_HEARTBEAT_INTERVAL_MS,
+      anyOnline: devices.some(d => d.online),
+      pendingSmsTotal: devices.reduce((sum, d) => sum + (d.pendingSmsCount || 0), 0)
+    });
   });
 
   // DELETE /api/v1/admin/sms-gateway/devices/:deviceId

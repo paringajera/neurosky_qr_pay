@@ -181,9 +181,16 @@ export class AndroidObserverDriver {
     };
   }
 
-  async sendHeartbeat() {
+  /**
+   * Submits a heartbeat. Pass telemetry to mimic app release 1.1.0+ (heartbeat v2):
+   * { batteryPercent, isCharging, networkType, appVersion, pendingSmsCount }.
+   * Without telemetry the legacy v1 heartbeat is sent, which the server stores as "unknown".
+   */
+  async sendHeartbeat(telemetry = null) {
     if (!this.deviceId) throw new Error('Cannot send heartbeat: device not paired.');
     const url = `${this.apiBaseUrl}/api/v1/pollers/android/heartbeat`;
+    const payload = { deviceId: this.deviceId, timestamp: Date.now() };
+    if (telemetry && typeof telemetry === 'object') Object.assign(payload, { heartbeatVersion: 2 }, telemetry);
 
     const res = await fetch(url, {
       method: 'POST',
@@ -191,7 +198,7 @@ export class AndroidObserverDriver {
         'Content-Type': 'application/json',
         'X-Device-Id': this.deviceId
       },
-      body: JSON.stringify({ deviceId: this.deviceId, timestamp: Date.now() })
+      body: JSON.stringify(payload)
     });
 
     return await res.json();

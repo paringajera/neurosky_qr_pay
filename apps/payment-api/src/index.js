@@ -37,8 +37,7 @@ import {
   AttributionEngine,
   RecoveryEngine,
   WebhookEngine,
-  PaymentVerificationPipeline
-} from '@neurosky/core';
+  PaymentVerificationPipeline, sweepOfflineAndroidDevices } from '@neurosky/core';
 import { HttpServer } from './server.js';
 import { authGuard } from './auth-guard.js';
 import { registerPaymentRoutes } from './routes/payments.routes.js';
@@ -360,6 +359,12 @@ export function createPaymentApp(customDb = null, options = {}) {
     } catch {}
   }, Number(process.env.WEBHOOK_RETRY_INTERVAL_MS || 5000));
 
+  // Flags Android observers whose heartbeat went stale, once per outage (audit trail + dashboard
+  // banner + 'device:offline' event). Exceptions are swallowed for the same reason as above.
+  const deviceWatchdogDaemon = setInterval(() => {
+    try { sweepOfflineAndroidDevices({ db, auditRepo, eventEmitter }); } catch {}
+  }, Number(process.env.ANDROID_WATCHDOG_INTERVAL_MS || 30000));
+
   if (webhookRetryDaemon.unref) webhookRetryDaemon.unref();
 
   // Consolidated, Coordinated Observer Polling & Verification Daemon
@@ -451,6 +456,7 @@ export function createPaymentApp(customDb = null, options = {}) {
   function destroy() {
     clearInterval(queueSyncDaemon);
     clearInterval(webhookRetryDaemon);
+    clearInterval(deviceWatchdogDaemon);
     observerPollerService.destroy();
     timingEngine.destroy();
     if (typeof attributionEngine.destroy === 'function') {

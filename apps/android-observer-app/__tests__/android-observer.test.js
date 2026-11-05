@@ -70,6 +70,21 @@ describe('Android Payment Observer Integration Tests', () => {
     assert.ok(hbResult.timestamp);
   });
 
+  test('heartbeat v2 telemetry (battery, network, app version, outbox size) is stored and shown for the device', async () => {
+    await ensurePaired();
+    const hbResult = await driver.sendHeartbeat({ batteryPercent: 73, isCharging: false, networkType: 'WIFI', appVersion: '1.1.0', pendingSmsCount: 0 });
+    assert.equal(hbResult.status, 'HEARTBEAT_ACK');
+    assert.equal(hbResult.heartbeatIntervalMs, 30000);
+
+    const row = testDb.queryOne('SELECT battery_percent, is_charging, network_type, app_version, pending_sms_count, last_heartbeat_at FROM android_devices WHERE id = ?', [driver.deviceId]);
+    assert.equal(Number(row.battery_percent), 73);
+    assert.equal(Number(row.is_charging), 0);
+    assert.equal(row.network_type, 'WIFI');
+    assert.equal(row.app_version, '1.1.0');
+    assert.equal(Number(row.pending_sms_count), 0);
+    assert.ok(row.last_heartbeat_at);
+  });
+
   test('rejects observation with expired/drifted timestamp (Replay Protection)', async () => {
     await ensurePaired();
     // Timestamp 2 minutes in the past (> 60s drift)

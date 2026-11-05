@@ -182,6 +182,12 @@ CREATE TABLE IF NOT EXISTS android_devices (
     is_active INTEGER NOT NULL DEFAULT 1,
     last_heartbeat_at TEXT,
     last_observation_at TEXT,
+    battery_percent INTEGER,
+    is_charging INTEGER,
+    network_type TEXT,
+    app_version TEXT,
+    pending_sms_count INTEGER,
+    offline_alerted_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

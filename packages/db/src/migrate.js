@@ -49,6 +49,13 @@ export function runMigrations(targetDb) {
 
   // Fallback alter columns if customers/sessions table exists without new columns
   try { db.exec("ALTER TABLE merchants ADD COLUMN api_key_hash TEXT;"); } catch {}
+  // Android observer telemetry (heartbeat v2) and the one-shot offline flag used by the device watchdog
+  try { db.exec("ALTER TABLE android_devices ADD COLUMN battery_percent INTEGER;"); } catch {}
+  try { db.exec("ALTER TABLE android_devices ADD COLUMN is_charging INTEGER;"); } catch {}
+  try { db.exec("ALTER TABLE android_devices ADD COLUMN network_type TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE android_devices ADD COLUMN app_version TEXT;"); } catch {}
+  try { db.exec("ALTER TABLE android_devices ADD COLUMN pending_sms_count INTEGER;"); } catch {}
+  try { db.exec("ALTER TABLE android_devices ADD COLUMN offline_alerted_at TEXT;"); } catch {}
   try { db.exec("ALTER TABLE customers ADD COLUMN email TEXT;"); } catch {}
   try { db.exec("ALTER TABLE customers ADD COLUMN mobile_number TEXT;"); } catch {}
   try { db.exec("ALTER TABLE customers ADD COLUMN otp_code TEXT;"); } catch {}
