@@ -367,6 +367,12 @@ export async function checkUpiServerHealth(ctx, enabledMethods = [], sellingMode
     ? enabledMethods.includes('COD')
     : enabledMethods.includes('CASH_COUNTER');
 
+  // Which channels the operator runs. With NEUROSKY_OBSERVER_CHANNEL=SMS_ONLY the Gmail observer is
+  // deliberately not started (see control-center process-manager), so a healthy SMS observer is the
+  // whole configured capacity and must read as WORKING rather than as a degraded "busy" gateway.
+  const observerChannel = String(process.env.NEUROSKY_OBSERVER_CHANNEL || 'ALL').trim().toUpperCase();
+  const smsOnlyMode = observerChannel === 'SMS_ONLY';
+
   if (smsHealthy && gmailHealthy) {
     return {
       status: 'WORKING',
@@ -376,6 +382,20 @@ export async function checkUpiServerHealth(ctx, enabledMethods = [], sellingMode
       reason: 'All observers active: Gmail OAuth polling & SMS Gateway connected',
       smsHealthy: true,
       gmailHealthy: true,
+      warning: null,
+      recommendedAlternative: null
+    };
+  }
+
+  if (smsOnlyMode && smsHealthy) {
+    return {
+      status: 'WORKING',
+      tier: 'GREEN',
+      label: 'Server Is Working',
+      isWorking: true,
+      reason: 'SMS observer active (SMS-only mode: the Gmail observer is not part of this deployment)',
+      smsHealthy: true,
+      gmailHealthy,
       warning: null,
       recommendedAlternative: null
     };

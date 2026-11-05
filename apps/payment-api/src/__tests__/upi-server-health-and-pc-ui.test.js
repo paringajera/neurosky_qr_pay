@@ -220,5 +220,47 @@ describe('UPI Server Health Indicator & Checkout State Invariants', () => {
     assert.equal(healthRes.body.status, 'ISSUES');
     assert.equal(healthRes.body.isWorking, false);
   });
-});
 
+  test('NEUROSKY_OBSERVER_CHANNEL=SMS_ONLY: a healthy SMS observer alone reads WORKING (no Gmail required)', async () => {
+    const origChannel = process.env.NEUROSKY_OBSERVER_CHANNEL;
+    const origGmail = process.env.GMAIL_OBSERVER_PORT;
+    process.env.NEUROSKY_OBSERVER_CHANNEL = 'SMS_ONLY';
+    process.env.GMAIL_OBSERVER_PORT = '6998'; // nothing listens here: Gmail observer offline
+
+    // No Gmail credentials on the merchant, one Android device with a fresh heartbeat
+    const merchant = testDb.queryOne(`SELECT branding FROM merchants WHERE id = '00000000-0000-0000-0000-000000000001'`);
+    const branding = JSON.parse(merchant?.branding || '{}');
+    delete branding.gmailConfig;
+    delete branding.falseNarrativeUntil;
+    testDb.execute(`UPDATE merchants SET branding = ? WHERE id = '00000000-0000-0000-0000-000000000001'`, [JSON.stringify(branding)]);
+    testDb.execute('DELETE FROM android_devices');
+    testDb.execute(`
+      INSERT INTO android_devices (id, merchant_id, device_name, device_model, signing_key_hash, is_active, last_heartbeat_at, created_at)
+      VALUES ('dev-sms-only-1', '00000000-0000-0000-0000-000000000001', 'Bank SIM Phone', 'SM-A546E', 'hash-sms-only', 1, datetime('now'), datetime('now'))
+    `);
+
+    try {
+      const healthRes = await request('/api/v1/checkout/server-health');
+      assert.equal(healthRes.status, 200);
+      assert.equal(healthRes.body.status, 'WORKING');
+      assert.equal(healthRes.body.tier, 'GREEN');
+      assert.equal(healthRes.body.label, 'Server Is Working');
+      assert.equal(healthRes.body.smsHealthy, true);
+      assert.equal(healthRes.body.gmailHealthy, false);
+      assert.equal(healthRes.body.warning, null);
+      assert.ok(healthRes.body.reason.includes('SMS-only mode'));
+
+      // The default ALL mode still treats the same state as degraded
+      process.env.NEUROSKY_OBSERVER_CHANNEL = 'ALL';
+      const busyRes = await request('/api/v1/checkout/server-health');
+      assert.equal(busyRes.body.status, 'BUSY');
+      assert.equal(busyRes.body.tier, 'YELLOW');
+      assert.equal(busyRes.body.label, 'UPI Server Busy');
+      assert.equal(busyRes.body.reason, 'SMS observer active, Gmail observer offline');
+    } finally {
+      if (origChannel === undefined) delete process.env.NEUROSKY_OBSERVER_CHANNEL; else process.env.NEUROSKY_OBSERVER_CHANNEL = origChannel;
+      if (origGmail === undefined) delete process.env.GMAIL_OBSERVER_PORT; else process.env.GMAIL_OBSERVER_PORT = origGmail;
+      testDb.execute(`DELETE FROM android_devices WHERE id = 'dev-sms-only-1'`);
+    }
+  });
+});
