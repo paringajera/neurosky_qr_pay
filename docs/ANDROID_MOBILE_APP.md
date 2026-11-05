@@ -127,7 +127,7 @@ credit alert that has a bank sender ID (for example `VM-HDFCBK`), a credit word 
 `received`, `deposited`), an amount with a currency prefix (`Rs.1.00`, `INR 1.00`, `₹1.00`) and the
 12-digit UPI reference (`UPI Ref No 431234567890`). To confirm your bank's wording without paying:
 
-1. Merchant Admin → **Developer & Infrastructure Hub → Android SMS Hub → Test Bank SMS Parser**.
+1. Merchant Admin → **Developer Hub → Android SMS Hub → Test Bank SMS Parser**.
 2. Paste the sender ID and the full text of a real credit SMS from your bank, then click **Dispatch**.
 3. The result is a dry run (nothing is recorded, no payment is touched) with three stages: whether the
    phone app would forward the message, what the server parser extracts (amount, reference, payer VPA)

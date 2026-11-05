@@ -76,7 +76,7 @@ To configure the payment stand for your customer, collect:
 
 ### Step 2: Configure in Merchant Admin Panel
 1. Open the **Merchant Admin Hub** at `http://localhost:6001` (or your production admin domain).
-2. Navigate to **Store Settings &rarr; 🪧 Payment QR Stand Studio**.
+2. Navigate to **Store Settings &rarr; QR Stand**.
 3. Input the customer's UPI ID, PhonePe registered mobile number, business name, and design preferences.
 4. The live artwork preview immediately renders the custom stand with scannable QR code and trust ribbons.
 

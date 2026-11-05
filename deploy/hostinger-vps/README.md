@@ -88,7 +88,7 @@ Never commit `.env` to git to move it: the server would pull a localhost configu
    grep '^ADMIN_API_TOKEN=' /opt/neurosky-pay/.env
    ```
 2. Open `https://pay-admin.example.com`, paste the token in the unlock box. The header badge must read
-   **PRODUCTION** with your domain. If it says LOCALHOST, open **Developer & Infrastructure Hub → Environment**,
+   **PRODUCTION** with your domain. If it says LOCALHOST, open **Developer Hub → Environment & Domain**,
    enter the base domain and prefix and select **Production Mode** before saving anything else, otherwise the
    first save stores localhost URLs for checkout links and the Android pairing QR.
 3. **Store Settings → Receiving Accounts**: add your UPI ID (VPA) and activate it.
@@ -104,7 +104,7 @@ Never commit `.env` to git to move it: the server would pull a localhost configu
    that receives the bank SMS, scan the pairing QR. The APK talks to `https://pay-api.example.com`.
    Before the first real payment, paste one of your bank's credit SMS into the **Test Bank SMS Parser**
    box on the same page: it dry-runs the phone filter and the server parser without recording anything.
-7. **Merchant site**: add the script tag shown in Store Settings → Brand Identity, create payments
+7. **Merchant site**: add the script tag shown in Store Settings → Brand & Checkout, create payments
    server-side with your merchant key (`X-Merchant-Key`), and fulfil orders only on the `RECONCILED`
    webhook (`docs/MERCHANT_INTEGRATION.md`). Every storefront origin must be listed in
    `NEUROSKY_ALLOWED_ORIGINS`, `NEUROSKY_ALLOWED_RETURN_ORIGINS` and `CHECKOUT_FRAME_ANCESTORS` in `.env`.
@@ -147,6 +147,6 @@ Never commit `.env` to git to move it: the server would pull a localhost configu
 | Gmail observer stays STANDBY | `RECEIVING_ACCOUNT_ID` not set, or the redirect URI in Google Cloud does not match exactly |
 | Android app cannot pair | the phone must reach `https://pay-api.example.com`; HTTP without TLS is blocked by the app |
 | Checkout works but the merchant site cannot open the modal | add the storefront origin to `CHECKOUT_FRAME_ANCESTORS` and `NEUROSKY_ALLOWED_ORIGINS` |
-| Saving settings fails with "Webhook URL must not point to a loopback or private network address" | the merchant webhook URL is still `http://localhost:5000/api/webhook` (databases seeded before `COIN_STORE_WEBHOOK_URL` was in the template). Set it to `https://pay-store.example.com/api/webhook` in Developer Hub → Webhooks & Secrets, or set `NEUROSKY_ALLOW_PRIVATE_WEBHOOKS=true` in `.env` and restart |
+| Saving settings fails with "Webhook URL must not point to a loopback or private network address" | the merchant webhook URL is still `http://localhost:5000/api/webhook` (databases seeded before `COIN_STORE_WEBHOOK_URL` was in the template). Set it to `https://pay-store.example.com/api/webhook` in Developer Hub → API Keys & Webhooks, or set `NEUROSKY_ALLOW_PRIVATE_WEBHOOKS=true` in `.env` and restart |
 | Demo store shows "Unable to create payment" | the store built its return URL from localhost because `COIN_STORE_PUBLIC_URL` (or `BASE_DEMO_STORE_URL`) was missing from an older `.env`, and the gateway rejects return origins outside `NEUROSKY_ALLOWED_RETURN_ORIGINS`. Add `COIN_STORE_PUBLIC_URL=https://pay-store.example.com` to `.env` and restart; `journalctl -u neurosky-pay` prints the gateway's reason |
-| Header badge says LOCALHOST, checkout links or the pairing QR point at localhost | Developer Hub → Environment: enter the base domain and prefix and select Production Mode, then save again |
+| Header badge says LOCALHOST, checkout links or the pairing QR point at localhost | Developer Hub → Environment & Domain: enter the base domain and prefix and select Production Mode, then save again |

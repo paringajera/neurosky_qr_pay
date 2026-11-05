@@ -389,7 +389,7 @@
       }
     }
 
-    /* Primary navigation: flat tab strip, active tab marked by an accent bar */
+    /* Primary navigation: flat tab strip with line icons, active tab marked by an accent bar */
     .main-nav-bar {
       background: var(--nav-bg);
       border-bottom: 1px solid var(--nav-border);
@@ -400,23 +400,42 @@
       position: sticky;
       top: 60px;
       z-index: 999;
+      scrollbar-width: none;
+    }
+
+    .main-nav-bar::-webkit-scrollbar {
+      display: none;
     }
 
     .main-nav-btn {
-      padding: 0.85rem 1.1rem;
+      padding: 0.9rem 1rem;
       cursor: pointer;
       border: none;
       background: transparent;
+      font-family: var(--font-ui);
       font-weight: 600;
+      font-size: 0.88rem;
+      letter-spacing: 0.01em;
       color: var(--text-muted);
       border-bottom: 2px solid transparent;
       margin-bottom: -1px;
       white-space: nowrap;
-      transition: color 0.15s ease, border-color 0.15s ease;
-      font-size: 0.9rem;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 0.55rem;
+      gap: 0.5rem;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .main-nav-btn .nav-icon {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.85;
     }
 
     .main-nav-btn:hover {
@@ -424,9 +443,13 @@
     }
 
     .main-nav-btn.active {
-      color: var(--text-heading);
+      color: var(--primary);
       border-bottom-color: var(--primary);
       background: transparent;
+    }
+
+    .main-nav-btn.active .nav-icon {
+      opacity: 1;
     }
 
     .main-nav-btn:focus-visible,
@@ -436,29 +459,42 @@
       outline-offset: 2px;
     }
 
-    /* Secondary navigation: quiet segmented row */
+    /* Secondary navigation: segmented views on the left, one line that says what the view is for on the right */
     .sub-nav-bar {
       background: var(--subnav-bg);
       border-bottom: 1px solid var(--subnav-border);
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.45rem 1.75rem;
+    }
+
+    .sub-nav-pills {
+      display: flex;
+      align-items: center;
       gap: 0.25rem;
-      padding: 0.5rem 1.75rem;
+      min-width: 0;
       overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .sub-nav-pills::-webkit-scrollbar {
+      display: none;
     }
 
     .sub-nav-pill {
-      padding: 0.38rem 0.8rem;
+      padding: 0.38rem 0.85rem;
       cursor: pointer;
       border: 1px solid var(--pill-border);
       background: var(--pill-bg);
       border-radius: var(--r-ctl);
+      font-family: var(--font-ui);
       font-weight: 600;
+      font-size: 0.8rem;
       color: var(--pill-text);
       white-space: nowrap;
-      font-size: 0.8rem;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
+      transition: background 0.15s ease, color 0.15s ease;
     }
 
     .sub-nav-pill:hover {
@@ -474,6 +510,22 @@
 
     [data-theme="dark"] .sub-nav-pill.active {
       color: #04201c;
+    }
+
+    .sub-nav-hint {
+      flex: 0 1 auto;
+      min-width: 0;
+      font-size: 0.76rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @media (max-width: 900px) {
+      .sub-nav-hint {
+        display: none;
+      }
     }
 
 
@@ -1227,7 +1279,7 @@
 
       <!-- Active VPA Display -->
       <span class="badge badge-info" id="accountVpaDisplay" style="cursor:pointer;"
-        onclick="switchSection('storeSettings', 'subTabVpa')">
+        onclick="switchSection('storeSettings', 'subViewStoreVpa')">
         VPA: Loading...
       </span>
 
@@ -1248,30 +1300,32 @@
     </div>
   </header>
 
-  <!-- MAIN NAVIGATION BAR: 3 HIGH-LEVEL SECTIONS -->
-  <nav class="main-nav-bar">
-    <button class="main-nav-btn active" id="mainNavOperations" onclick="switchSection('operations')">
-      <span>🏪</span>
-      <span>Daily Merchant Operations</span>
+  <!-- MAIN NAVIGATION BAR: 4 HIGH-LEVEL SECTIONS -->
+  <nav class="main-nav-bar" role="tablist" aria-label="Main sections">
+    <button class="main-nav-btn active" id="mainNavOperations" role="tab" aria-selected="true"
+      onclick="switchSection('operations')" title="Live payments, counter desk, transactions and observer health">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <span>Operations</span>
     </button>
-    <button class="main-nav-btn" id="mainNavStoreSettings" onclick="switchSection('storeSettings')">
-      <span>⚙️</span>
+    <button class="main-nav-btn" id="mainNavStoreSettings" role="tab" aria-selected="false"
+      onclick="switchSection('storeSettings')" title="Brand, receiving UPI IDs, selling modes and the QR stand">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>
       <span>Store Settings</span>
     </button>
-    <button class="main-nav-btn" id="mainNavDeveloperHub" onclick="switchSection('developerHub')">
-      <span>🛠️</span>
-      <span>Developer &amp; Infrastructure Hub</span>
+    <button class="main-nav-btn" id="mainNavDeveloperHub" role="tab" aria-selected="false"
+      onclick="switchSection('developerHub')" title="Environment, API keys, webhooks, Android SMS hub and system status">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span>Developer Hub</span>
     </button>
-    <button class="main-nav-btn" id="mainNavSecurity" onclick="switchSection('security')">
-      <span>🛡️</span>
+    <button class="main-nav-btn" id="mainNavSecurity" role="tab" aria-selected="false"
+      onclick="switchSection('security')" title="Banned customers, security events and ban history">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
       <span>Security</span>
     </button>
   </nav>
 
-  <!-- SECONDARY SUB-NAVIGATION BAR (Dynamically adapts per section) -->
-  <nav class="sub-nav-bar" id="subNavBar">
-    <!-- Filled dynamically or toggled based on current section -->
-  </nav>
+  <!-- SECONDARY SUB-NAVIGATION BAR (rendered per section by renderSubNavBar) -->
+  <nav class="sub-nav-bar" id="subNavBar" aria-label="Section views"></nav>
 
   <main>
 
@@ -4070,11 +4124,16 @@
       } catch (e) { }
 
       // Update main nav buttons
-      document.querySelectorAll('.main-nav-btn').forEach(b => b.classList.remove('active'));
-      if (sectionId === 'operations') document.getElementById('mainNavOperations').classList.add('active');
-      if (sectionId === 'storeSettings') document.getElementById('mainNavStoreSettings').classList.add('active');
-      if (sectionId === 'developerHub') document.getElementById('mainNavDeveloperHub').classList.add('active');
-      if (sectionId === 'security') document.getElementById('mainNavSecurity').classList.add('active');
+      const mainNavIds = { operations: 'mainNavOperations', storeSettings: 'mainNavStoreSettings', developerHub: 'mainNavDeveloperHub', security: 'mainNavSecurity' };
+      document.querySelectorAll('.main-nav-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      const activeMainBtn = document.getElementById(mainNavIds[sectionId]);
+      if (activeMainBtn) {
+        activeMainBtn.classList.add('active');
+        activeMainBtn.setAttribute('aria-selected', 'true');
+      }
 
       // Show/hide sections
       document.getElementById('sectionOperations').hidden = (sectionId !== 'operations');
@@ -4099,61 +4158,83 @@
       }
     }
 
+    // Secondary navigation: short names plus a one-line hint that says what each view is for.
+    // Ids are the sub-view element ids and must not change; labels and hints are free text.
+    const SUB_NAV_ITEMS = {
+      operations: [
+        { id: 'subViewOpsLive', label: 'Live Monitor', hint: 'Active payment slots, the queue and incoming confirmations in real time.' },
+        { id: 'subViewOpsCounter', label: 'Counter Desk', hint: 'Cash and card payments taken at the till, and cash-on-delivery orders.' },
+        { id: 'subViewOpsTransactions', label: 'Transactions', hint: 'Every payment session with its status, bank reference and webhook delivery.' },
+        { id: 'subViewOpsObservers', label: 'Observers', hint: 'Health of the SMS and Gmail observers that confirm payments.' }
+      ],
+      storeSettings: [
+        { id: 'subViewStoreBrand', label: 'Brand & Checkout', hint: 'Logo, colours, support details and a live preview of the checkout page.' },
+        { id: 'subViewStoreVpa', label: 'Receiving Accounts', hint: 'UPI IDs that receive customer payments; one is active at a time.' },
+        { id: 'subViewStoreModes', label: 'Selling Modes', hint: 'Online checkout, counter payments and cash-on-delivery options.' },
+        { id: 'subViewStoreStand', label: 'QR Stand', hint: 'Printable payment QR stand for the counter.' }
+      ],
+      developerHub: [
+        { id: 'subViewDevSimulator', label: 'Payment Simulator', hint: 'Developer testing only. Disabled on a live gateway.' },
+        { id: 'subViewDevSupervisor', label: 'System Status', hint: 'Service health, live logs and the demo store.' },
+        { id: 'subViewDevCloudflare', label: 'Environment & Domain', hint: 'Localhost or production mode, public domain and prefix, optional Cloudflare tunnel.' },
+        { id: 'subViewDevWebhooks', label: 'API Keys & Webhooks', hint: 'Merchant ID, secret API key, webhook URL and signing secret.' },
+        { id: 'subViewDevAndroid', label: 'Android SMS Hub', hint: 'Pair the phone that receives bank SMS and test your bank\'s SMS format.' },
+        { id: 'subViewDevProtocols', label: 'Gmail & WhatsApp', hint: 'Gmail observer connection and WhatsApp OTP settings.' }
+      ],
+      security: [
+        { id: 'subViewSecBanned', label: 'Banned Customers', hint: 'Customers blocked by the fraud engine.' },
+        { id: 'subViewSecEvents', label: 'Security Events', hint: 'Suspicious observations, replay attempts and injection patterns.' },
+        { id: 'subViewSecHistory', label: 'Ban History', hint: 'Past bans and when they were lifted.' }
+      ]
+    };
+    // Older links still use these names.
+    const LEGACY_SUB_TABS = { subTabVpa: 'subViewStoreVpa' };
+
     function renderSubNavBar(sectionId, targetSubTab = null) {
       const subNav = document.getElementById('subNavBar');
+      const items = SUB_NAV_ITEMS[sectionId] || [];
       subNav.innerHTML = '';
 
-      let items = [];
-      if (sectionId === 'operations') {
-        items = [
-          { id: 'subViewOpsLive', label: '📊 Live Monitor & Slots', viewId: 'subViewOpsLive' },
-          { id: 'subViewOpsCounter', label: '🏪 Counter Desk (POS Cashier)', viewId: 'subViewOpsCounter' },
-          { id: 'subViewOpsTransactions', label: '💳 Transactions Ledger', viewId: 'subViewOpsTransactions' },
-          { id: 'subViewOpsObservers', label: '📡 Payment Observers Status', viewId: 'subViewOpsObservers' }
-        ];
-      } else if (sectionId === 'storeSettings') {
-        items = [
-          { id: 'subViewStoreBrand', label: '🎨 Brand Identity & Live Mockup', viewId: 'subViewStoreBrand' },
-          { id: 'subViewStoreVpa', label: '⚡ Receiving Accounts (VPAs)', viewId: 'subViewStoreVpa' },
-          { id: 'subViewStoreModes', label: '🏬 Selling Modes & Modalities', viewId: 'subViewStoreModes' },
-          { id: 'subViewStoreStand', label: '🪧 Payment QR Stand Studio', viewId: 'subViewStoreStand' }
-        ];
-      } else if (sectionId === 'developerHub') {
-        items = [
-          { id: 'subViewDevSimulator', label: '🎮 Payment Simulator', viewId: 'subViewDevSimulator' },
-          { id: 'subViewDevSupervisor', label: '🖥️ System Supervisor & Store (5000)', viewId: 'subViewDevSupervisor' },
-          { id: 'subViewDevCloudflare', label: '☁️ Cloudflare Tunnel', viewId: 'subViewDevCloudflare' },
-          { id: 'subViewDevWebhooks', label: '🔐 Webhooks & Secrets', viewId: 'subViewDevWebhooks' },
-          { id: 'subViewDevAndroid', label: '📱 Android SMS Hub', viewId: 'subViewDevAndroid' },
-          { id: 'subViewDevProtocols', label: '📧 Gmail & WhatsApp Protocols', viewId: 'subViewDevProtocols' }
-        ];
-      } else if (sectionId === 'security') {
-        items = [
-          { id: 'subViewSecBanned', label: '🚫 Banned Users', viewId: 'subViewSecBanned' },
-          { id: 'subViewSecEvents', label: '🚨 Security Events', viewId: 'subViewSecEvents' },
-          { id: 'subViewSecHistory', label: '📜 Ban History', viewId: 'subViewSecHistory' }
-        ];
-      }
+      const pills = document.createElement('div');
+      pills.className = 'sub-nav-pills';
+      pills.setAttribute('role', 'tablist');
+      const hint = document.createElement('div');
+      hint.className = 'sub-nav-hint';
+      hint.id = 'subNavHint';
 
-      let defaultSub = targetSubTab || items[0].id;
+      const requested = LEGACY_SUB_TABS[targetSubTab] || targetSubTab;
+      const defaultSub = items.some(item => item.id === requested) ? requested : (items[0] ? items[0].id : null);
       items.forEach(item => {
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = `sub-nav-pill ${item.id === defaultSub ? 'active' : ''}`;
         btn.textContent = item.label;
+        btn.title = item.hint;
+        btn.dataset.subview = item.id;
+        btn.dataset.hint = item.hint;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', item.id === defaultSub ? 'true' : 'false');
         btn.onclick = () => switchSubView(sectionId, item.id);
-        subNav.appendChild(btn);
+        pills.appendChild(btn);
       });
+      subNav.appendChild(pills);
+      subNav.appendChild(hint);
 
-      switchSubView(sectionId, defaultSub);
+      if (defaultSub) switchSubView(sectionId, defaultSub);
     }
 
     function switchSubView(sectionId, subViewId) {
       activeSubTab = subViewId;
 
-      // Update pill styles
+      // Update pill styles and the hint line
       document.querySelectorAll('.sub-nav-pill').forEach(p => {
-        p.classList.remove('active');
-        if (p.onclick.toString().includes(subViewId)) p.classList.add('active');
+        const isActive = p.dataset.subview === subViewId;
+        p.classList.toggle('active', isActive);
+        p.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        if (isActive) {
+          const hintEl = document.getElementById('subNavHint');
+          if (hintEl) hintEl.textContent = p.dataset.hint || '';
+        }
       });
 
       // Hide all sub-views in current section and show target
