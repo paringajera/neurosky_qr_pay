@@ -389,6 +389,97 @@
       }
     }
 
+    /* Android observer liveness: status pills and the gateway-wide offline banner */
+    .device-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.15rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .device-pill::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .device-pill.is-online {
+      color: #0f766e;
+      background: rgba(15, 118, 110, 0.12);
+    }
+
+    .device-pill.is-offline {
+      color: #b91c1c;
+      background: rgba(185, 28, 28, 0.12);
+    }
+
+    .device-pill.is-never {
+      color: var(--text-muted);
+      background: var(--bg-elevated);
+    }
+
+    [data-theme="dark"] .device-pill.is-online {
+      color: #5eead4;
+    }
+
+    [data-theme="dark"] .device-pill.is-offline {
+      color: #fca5a5;
+    }
+
+    .device-meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .device-warn {
+      font-size: 0.72rem;
+      color: #b45309;
+      margin-top: 0.15rem;
+    }
+
+    .device-offline-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.6rem 1.75rem;
+      background: rgba(185, 28, 28, 0.08);
+      border-bottom: 1px solid rgba(185, 28, 28, 0.35);
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    .device-offline-banner[hidden] {
+      display: none;
+    }
+
+    .device-offline-banner-text {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+
+    .ops-device-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: var(--r-ctl);
+      background: var(--bg-surface);
+      margin-bottom: 0.4rem;
+      font-size: 0.8rem;
+    }
+
     /* Primary navigation: flat tab strip with line icons, active tab marked by an accent bar */
     .main-nav-bar {
       background: var(--nav-bg);
@@ -1327,6 +1418,15 @@
   <!-- SECONDARY SUB-NAVIGATION BAR (rendered per section by renderSubNavBar) -->
   <nav class="sub-nav-bar" id="subNavBar" aria-label="Section views"></nav>
 
+  <!-- Shown only while every paired bank-SMS phone has stopped sending heartbeats -->
+  <div id="deviceOfflineBanner" class="device-offline-banner" hidden role="alert">
+    <div>
+      <strong id="deviceOfflineBannerTitle">Bank-SMS phone is offline</strong>
+      <div id="deviceOfflineBannerText" class="device-offline-banner-text"></div>
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="switchSection('developerHub', 'subViewDevAndroid')">Open Android SMS Hub</button>
+  </div>
+
   <main>
 
     <!-- ========================================================================= -->
@@ -1554,6 +1654,7 @@
             <p class="card-subtext" style="margin-bottom:1rem;">
               Native Android observer app captures credit SMS notifications in real-time from bank-linked handsets.
             </p>
+            <div id="opsDeviceStatusList" style="margin-bottom:1rem;"></div>
             <div
               style="background:var(--bg-surface); border:1px solid var(--border); border-radius:0.5rem; padding:1rem; margin-bottom:1rem;">
               <div style="font-size:0.8rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem;">Enrollment
@@ -3231,15 +3332,18 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Device Name</th>
-                    <th>Device ID</th>
-                    <th>Paired At</th>
+                    <th>Device</th>
+                    <th>Status</th>
+                    <th>Last bank SMS</th>
+                    <th>Battery</th>
+                    <th>Network</th>
+                    <th>App</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody id="smsDevicesTableBody">
                   <tr>
-                    <td colspan="4" style="text-align:center; color:var(--text-muted); padding:1rem;">No devices paired
+                    <td colspan="7" style="text-align:center; color:var(--text-muted); padding:1rem;">No devices paired
                       yet. Scan QR above to pair.</td>
                   </tr>
                 </tbody>
@@ -5835,47 +5939,120 @@
       fetchGmailCredentials();
     }
 
-    async function fetchSmsGatewayDevices() {
-      try {
-        const res = await fetch(`${API_BASE}/api/v1/admin/sms-gateway/devices`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const tbody = document.getElementById('smsDevicesTableBody');
-        const badge = document.getElementById('smsGatewayBadge');
-        const devBadge = document.getElementById('smsDevBadge');
+    // --- Android observer liveness (heartbeat every 30 s; offline after ANDROID_HEARTBEAT_TIMEOUT_MS) ---
+    function formatAgo(seconds) {
+      if (seconds === null || seconds === undefined || !Number.isFinite(Number(seconds))) return 'never';
+      const s = Math.max(0, Math.round(Number(seconds)));
+      if (s < 60) return `${s}s ago`;
+      if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min ago`;
+      return `${Math.floor(s / 86400)} d ago`;
+    }
 
-        const devices = data.devices || [];
-        if (badge) {
-          badge.className = devices.length > 0 ? 'badge badge-success' : 'badge badge-info';
-          badge.innerText = devices.length > 0 ? `${devices.length} PAIRED` : 'STANDBY';
-        }
-        if (devBadge) {
-          devBadge.className = devices.length > 0 ? 'badge badge-success' : 'badge badge-info';
-          devBadge.innerText = devices.length > 0 ? `${devices.length} PAIRED` : 'STANDBY';
-        }
+    function devicePill(d) {
+      if (d.status === 'NEVER_SEEN') return '<span class="device-pill is-never">Never connected</span>';
+      return d.online
+        ? '<span class="device-pill is-online">Online</span>'
+        : '<span class="device-pill is-offline">Offline</span>';
+    }
 
-        if (!tbody) return;
-        if (devices.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); font-size:0.8rem; padding:1rem;">No devices paired yet. Scan QR above to pair.</td></tr>';
-          return;
-        }
+    function deviceBatteryText(d) {
+      if (!d.telemetryAvailable) return '<span title="Install app 1.1.0 or newer on the phone to see battery, network and the upload queue" style="color:var(--text-muted);">unknown (old app)</span>';
+      if (d.batteryPercent === null || d.batteryPercent === undefined) return '-';
+      const low = d.batteryPercent < 20 && !d.isCharging;
+      const style = low ? 'color:#b91c1c; font-weight:700;' : '';
+      return `<span style="${style}">${d.batteryPercent}%</span>${d.isCharging ? ' <span style="color:var(--text-muted);">charging</span>' : ''}`;
+    }
 
-        tbody.innerHTML = devices.map(d => {
-          const name = d.deviceName || d.device_name || d.deviceModel || 'Android Observer';
-          const id = d.deviceId || d.id || '-';
-          const rawTime = d.pairedAt || d.createdAt || d.created_at;
-          const timeStr = rawTime ? new Date(rawTime).toLocaleTimeString() : 'Active';
-          return `
+    function renderDeviceRows(devices) {
+      return devices.map(d => {
+        const name = d.deviceName || d.device_name || d.deviceModel || 'Android Observer';
+        const id = d.deviceId || d.id || '-';
+        const ping = d.status === 'NEVER_SEEN' ? 'No heartbeat received yet' : `Last ping ${formatAgo(d.secondsSinceHeartbeat)}`;
+        const pending = d.pendingSmsCount > 0 ? `<div class="device-warn">${d.pendingSmsCount} SMS waiting to upload</div>` : '';
+        const lastSms = (d.secondsSinceObservation === null || d.secondsSinceObservation === undefined)
+          ? '<span style="color:var(--text-muted);">none yet</span>'
+          : escapeHtml(formatAgo(d.secondsSinceObservation));
+        const network = d.telemetryAvailable ? escapeHtml(d.networkType || '-') : '-';
+        const app = d.appVersion ? escapeHtml(d.appVersion) : '<span style="color:var(--text-muted);">&lt; 1.1.0</span>';
+        return `
         <tr>
-          <td><strong>${escapeHtml(name)}</strong></td>
-          <td><code style="font-size:0.75rem; color:var(--info);">${escapeHtml(id)}</code></td>
-          <td><span style="font-size:0.75rem; color:var(--text-muted);">${timeStr}</span></td>
+          <td><strong>${escapeHtml(name)}</strong><div><code style="font-size:0.68rem; color:var(--text-dim);">${escapeHtml(id)}</code></div></td>
+          <td>${devicePill(d)}<div class="device-meta">${escapeHtml(ping)}</div>${pending}</td>
+          <td style="font-size:0.78rem;">${lastSms}</td>
+          <td style="font-size:0.78rem;">${deviceBatteryText(d)}</td>
+          <td style="font-size:0.78rem;">${network}</td>
+          <td style="font-size:0.78rem;">${app}</td>
           <td>
             <button class="btn btn-danger" style="padding:0.25rem 0.6rem; font-size:0.72rem;" onclick="unpairSmsDevice(${jsArg(id)})">Unpair</button>
           </td>
         </tr>
       `;
-        }).join('');
+      }).join('');
+    }
+
+    function renderOpsDeviceStatus(devices) {
+      const box = document.getElementById('opsDeviceStatusList');
+      if (!box) return;
+      if (!devices.length) {
+        box.innerHTML = '<div class="device-meta">No phone paired yet. Pair the bank-SIM phone in Developer Hub → Android SMS Hub.</div>';
+        return;
+      }
+      box.innerHTML = devices.map(d => {
+        const name = d.deviceName || d.device_name || 'Android Observer';
+        const ping = d.status === 'NEVER_SEEN' ? 'no heartbeat yet' : `last ping ${formatAgo(d.secondsSinceHeartbeat)}`;
+        const battery = d.telemetryAvailable && d.batteryPercent !== null ? ` · ${d.batteryPercent}%${d.isCharging ? ' charging' : ''}` : '';
+        const pending = d.pendingSmsCount > 0 ? ` · ${d.pendingSmsCount} SMS queued` : '';
+        return `<div class="ops-device-row"><div><strong>${escapeHtml(name)}</strong><div class="device-meta">${escapeHtml(ping + battery + pending)}</div></div>${devicePill(d)}</div>`;
+      }).join('');
+    }
+
+    function updateDeviceOfflineBanner(devices) {
+      const banner = document.getElementById('deviceOfflineBanner');
+      if (!banner) return;
+      const seen = devices.filter(d => d.status !== 'NEVER_SEEN');
+      const offline = seen.filter(d => !d.online);
+      // Critical only when no phone at all is reporting: a second phone that is still online keeps payments flowing.
+      if (!seen.length || offline.length < seen.length) {
+        banner.hidden = true;
+        return;
+      }
+      const worst = offline.reduce((a, b) => ((a.secondsSinceHeartbeat || 0) >= (b.secondsSinceHeartbeat || 0) ? a : b));
+      const title = offline.length > 1
+        ? 'All bank-SMS phones are offline'
+        : `${worst.deviceName || worst.device_name || 'Bank-SMS phone'} is offline`;
+      const queued = offline.reduce((sum, d) => sum + (d.pendingSmsCount || 0), 0);
+      const text = `Last heartbeat ${formatAgo(worst.secondsSinceHeartbeat)}. New UPI payments stop after 5 minutes without a heartbeat and incoming bank SMS cannot be confirmed. Check the phone's internet, battery and that the NeuroSky Observer app is running.${queued ? ` ${queued} SMS are queued on the phone and will upload when it reconnects.` : ''}`;
+      document.getElementById('deviceOfflineBannerTitle').textContent = title;
+      document.getElementById('deviceOfflineBannerText').textContent = text;
+      banner.hidden = false;
+    }
+
+    async function fetchSmsGatewayDevices() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/admin/sms-gateway/devices`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const devices = data.devices || [];
+        const onlineCount = devices.filter(d => d.online).length;
+
+        const badgeClass = devices.length === 0 ? 'badge badge-info' : (onlineCount > 0 ? 'badge badge-success' : 'badge badge-danger');
+        const badgeText = devices.length === 0 ? 'STANDBY' : (onlineCount > 0 ? `${onlineCount}/${devices.length} ONLINE` : 'OFFLINE');
+        for (const badgeId of ['smsGatewayBadge', 'smsDevBadge']) {
+          const el = document.getElementById(badgeId);
+          if (el) { el.className = badgeClass; el.innerText = badgeText; }
+        }
+
+        updateDeviceOfflineBanner(devices);
+        renderOpsDeviceStatus(devices);
+
+        const tbody = document.getElementById('smsDevicesTableBody');
+        if (!tbody) return;
+        if (devices.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); font-size:0.8rem; padding:1rem;">No devices paired yet. Scan QR above to pair.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = renderDeviceRows(devices);
       } catch (e) { }
     }
 
