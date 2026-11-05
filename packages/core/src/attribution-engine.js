@@ -1,4 +1,4 @@
-import { PaymentStatus, ObservationAttributionStatus, TicketStatus, SenderType, isTerminalStatus, calculateObservationFingerprint } from '@neurosky/common';
+import { PaymentStatus, ObservationAttributionStatus, TicketStatus, SenderType, isTerminalStatus, calculateObservationFingerprint, observerOutcomeStatus, observerOutcomeEvent } from '@neurosky/common';
 
 export function getChannelFamily(source) {
   const normalized = String(source || '').trim().toUpperCase();
@@ -324,7 +324,7 @@ export class AttributionEngine {
         }
 
         if (verifyResult.isFirstSuccess) {
-          this.eventEmitter.emit('PAYMENT.OBSERVED_SUCCESS', {
+          this.eventEmitter.emit(observerOutcomeEvent(), {
             paymentId: existing.attributedPaymentId,
             orderId: verifyResult.session.orderId,
             merchantId: verifyResult.session.merchantId,
@@ -349,7 +349,7 @@ export class AttributionEngine {
           lateMatch: false,
           paymentSessionId: existing.attributedPaymentId,
           observationId: savedObs.id,
-          outcomeStatus: PaymentStatus.OBSERVED_SUCCESS,
+          outcomeStatus: observerOutcomeStatus(),
           verificationLevel: verifyResult.level,
           verificationTag: verifyResult.tag,
           verificationSources: verifyResult.sources
@@ -619,7 +619,7 @@ export class AttributionEngine {
             });
           }
 
-          this.eventEmitter.emit('PAYMENT.OBSERVED_SUCCESS', {
+          this.eventEmitter.emit(observerOutcomeEvent(), {
             paymentId: currentSession.id,
             orderId: currentSession.orderId,
             merchantId: currentSession.merchantId,
@@ -645,7 +645,7 @@ export class AttributionEngine {
             wasActive,
             paymentSessionId: currentSession.id,
             observationId: savedObs.id,
-            outcomeStatus: PaymentStatus.OBSERVED_SUCCESS,
+            outcomeStatus: observerOutcomeStatus(),
             verificationLevel: 2,
             verificationTag: verifyResult.tag,
             verificationSources: verifyResult.sources
@@ -728,7 +728,7 @@ export class AttributionEngine {
             savedObs.id,
             { finalizeSuccess: true }
           );
-          this.eventEmitter.emit('PAYMENT.OBSERVED_SUCCESS', {
+          this.eventEmitter.emit(observerOutcomeEvent(), {
             paymentId: currentSession.id,
             orderId: currentSession.orderId,
             merchantId: currentSession.merchantId,
@@ -746,7 +746,7 @@ export class AttributionEngine {
             wasActive,
             paymentSessionId: currentSession.id,
             observationId: savedObs.id,
-            outcomeStatus: PaymentStatus.OBSERVED_SUCCESS,
+            outcomeStatus: observerOutcomeStatus(),
             verificationLevel: finalResult.level,
             verificationTag: finalResult.tag,
             verificationSources: finalResult.sources
@@ -854,7 +854,7 @@ export class AttributionEngine {
             });
           }
 
-          this.eventEmitter.emit('PAYMENT.OBSERVED_SUCCESS', {
+          this.eventEmitter.emit(observerOutcomeEvent(), {
             paymentId: targetSessionId,
             orderId: targetOrderId,
             merchantId: targetMerchantId,
@@ -1011,7 +1011,7 @@ export class AttributionEngine {
           lateMatch: false,
           paymentSessionId: recentSuccessSession.id,
           observationId: savedObs.id,
-          outcomeStatus: PaymentStatus.OBSERVED_SUCCESS,
+          outcomeStatus: observerOutcomeStatus(),
           verificationLevel: verifyResult.level,
           verificationTag: verifyResult.tag,
           verificationSources: verifyResult.sources

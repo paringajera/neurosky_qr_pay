@@ -23,6 +23,8 @@ import {
   MerchantRepository
 } from '@neurosky/db';
 
+process.env.NEUROSKY_UPI_FINALITY = process.env.NEUROSKY_UPI_FINALITY || 'STATEMENT'; // strict two-step UPI flow expected by this suite
+
 describe('Phase 9A Fail-Closed Payment Attribution Hardening Suite', () => {
   let db;
   let sessionRepo;

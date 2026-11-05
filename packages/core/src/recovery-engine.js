@@ -1,4 +1,4 @@
-import { PaymentStatus } from '@neurosky/common';
+import { PaymentStatus, observerOutcomeStatus, observerOutcomeEvent } from '@neurosky/common';
 
 export class RecoveryEngine {
   /**
@@ -51,7 +51,7 @@ export class RecoveryEngine {
 
     for (const row of overdueProcessing) {
       if (row.verification_level >= 1 || row.attributed_observation_id) {
-        this.sessionRepo.transitionToTerminal(row.id, PaymentStatus.OBSERVED_SUCCESS);
+        this.sessionRepo.transitionToTerminal(row.id, observerOutcomeStatus());
         if (this.auditRepo) {
           this.auditRepo.log({
             entityType: 'PAYMENT_SESSION',
@@ -61,7 +61,7 @@ export class RecoveryEngine {
           });
         }
         if (this.eventEmitter) {
-          this.eventEmitter.emit('PAYMENT.OBSERVED_SUCCESS', {
+          this.eventEmitter.emit(observerOutcomeEvent(), {
             paymentId: row.id,
             orderId: row.order_id,
             merchantId: row.merchant_id

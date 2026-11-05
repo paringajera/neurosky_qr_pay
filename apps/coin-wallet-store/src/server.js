@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { NeuroSkyPaymentClient } from '@neurosky/merchant-sdk';
-import { getCoinStoreWebhookSecret } from '@neurosky/common';
+import { getCoinStoreWebhookSecret, upiSuccessIsFinal } from '@neurosky/common';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -758,15 +758,19 @@ export class CoinWalletStoreServer {
             const currency = event.currency || event.data?.currency || 'INR';
             if (deliveryId) this.noteReceipt(deliveryId, eventName, orderId);
 
-            // UPI SUCCESS and OBSERVED_SUCCESS are observer evidence. They do not grant coins.
-            if ((eventName === 'SUCCESS' || eventName === 'OBSERVED_SUCCESS') && paidMethod === 'UPI') {
+            // Which UPI event settles an order depends on the gateway's finality mode:
+            // OBSERVER (default): a verified bank alert is final, so SUCCESS + method UPI grants coins.
+            // STATEMENT: SUCCESS / OBSERVED_SUCCESS are observer evidence only; RECONCILED grants.
+            const upiSettlementEvent = upiSuccessIsFinal() ? 'SUCCESS' : 'RECONCILED';
+            if (paidMethod === 'UPI' && eventName !== upiSettlementEvent
+              && (eventName === 'SUCCESS' || eventName === 'OBSERVED_SUCCESS' || eventName === 'RECONCILED')) {
               res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ received: true, credited: false, settlementState: 'NOT_RECONCILED' }));
+              res.end(JSON.stringify({ received: true, credited: false, settlementState: event.settlementState || event.data?.settlementState || 'NOT_RECONCILED' }));
               return;
             }
 
-            // Coins move only after a signed RECONCILED webhook for the same order, amount, and payment.
-            if (eventName === 'RECONCILED' && paidMethod === 'UPI') {
+            // Coins move only after the signed settlement webhook for the same order, amount, and payment.
+            if (eventName === upiSettlementEvent && paidMethod === 'UPI') {
               const localOrder = orderId ? this.orders.get(orderId) : undefined;
               if (!localOrder && (!orderId || !this.orderPayments.has(orderId))) {
                 res.writeHead(404, { 'Content-Type': 'application/json' });

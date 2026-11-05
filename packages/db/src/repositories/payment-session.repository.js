@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { PaymentStatus, PaymentMethod, isValidTransition, TERMINAL_STATES, IMMUTABLE_STATES } from '@neurosky/common';
+import { PaymentStatus, PaymentMethod, isValidTransition, TERMINAL_STATES, IMMUTABLE_STATES, observerOutcomeStatus, upiSuccessIsFinal } from '@neurosky/common';
 
 export class PaymentSessionRepository {
   /**
@@ -591,13 +591,16 @@ export class PaymentSessionRepository {
         || session.status === PaymentStatus.RECONCILED;
       const shouldFinalize = options.finalizeSuccess !== false;
       const wantsObserved = shouldFinalize && level >= 1 && !alreadyClosed;
-      if (wantsObserved && !isValidTransition(session.status, PaymentStatus.OBSERVED_SUCCESS)) {
-        throw new Error(`Illegal payment state transition: cannot move from '${session.status}' to 'OBSERVED_SUCCESS'.`);
+      // OBSERVER finality (default): a verified alert settles the session as SUCCESS.
+      // STATEMENT finality: it becomes OBSERVED_SUCCESS until a bank-statement line matches.
+      const outcomeStatus = observerOutcomeStatus();
+      if (wantsObserved && !isValidTransition(session.status, outcomeStatus)) {
+        throw new Error(`Illegal payment state transition: cannot move from '${session.status}' to '${outcomeStatus}'.`);
       }
       const isFirstSuccess = wantsObserved;
-      const targetStatus = wantsObserved ? PaymentStatus.OBSERVED_SUCCESS : session.status;
+      const targetStatus = wantsObserved ? outcomeStatus : session.status;
       if (wantsObserved) {
-        tag = `${tag} | OBSERVED_NOT_RECONCILED`;
+        tag = `${tag} | ${upiSuccessIsFinal() ? 'OBSERVER_VERIFIED' : 'OBSERVED_NOT_RECONCILED'}`;
       }
       const now = new Date().toISOString();
 
@@ -617,13 +620,13 @@ export class PaymentSessionRepository {
         JSON.stringify(sources),
         tag,
         observationId,
-        targetStatus === PaymentStatus.OBSERVED_SUCCESS ? now : null,
+        wantsObserved ? now : null,
         now,
         sessionId
       ]);
 
-      // If this transition made it terminal SUCCESS, release slot on receiving account
-      if (targetStatus === PaymentStatus.OBSERVED_SUCCESS && session.receivingAccountId) {
+      // If this transition closed the session, release the slot on the receiving account
+      if (wantsObserved && session.receivingAccountId) {
         this.db.execute(`
           UPDATE payment_receiving_accounts
           SET is_slot_busy = 0, current_active_session_id = NULL, updated_at = ?

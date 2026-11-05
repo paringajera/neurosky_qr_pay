@@ -57,6 +57,7 @@ const testFiles = [
   'apps/payment-api/src/__tests__/admin-env-defaults.test.js',
   'apps/payment-api/src/__tests__/sms-parse-dry-run.test.js',
   'apps/payment-api/src/__tests__/device-telemetry-watchdog.test.js',
+  'apps/payment-api/src/__tests__/upi-finality-observer-mode.test.js',
   'apps/payment-api/src/__tests__/cod-parallel-timer-decoupling.test.js',
   'apps/payment-api/src/__tests__/gateway-hardening-invariants.test.js',
   'apps/payment-api/src/__tests__/observer-poller.test.js',
@@ -85,7 +86,10 @@ for (let i = 0; i < testFiles.length; i++) {
       NEUROSKY_MODE: 'localhost',
       NODE_ENV: 'test',
       SKIP_FLAKY_TEST_4_1: process.env.SKIP_FLAKY_TEST_4_1 || '',
-      NEUROSKY_ALLOW_PRIVATE_WEBHOOKS: 'true'
+      NEUROSKY_ALLOW_PRIVATE_WEBHOOKS: 'true',
+      // Legacy suites assert the two-step OBSERVED_SUCCESS -> RECONCILED flow; suites that test the
+      // default OBSERVER finality set NEUROSKY_UPI_FINALITY=OBSERVER themselves.
+      NEUROSKY_UPI_FINALITY: process.env.NEUROSKY_UPI_FINALITY || 'STATEMENT'
     },
     encoding: 'utf8',
     timeout: PER_SUITE_TIMEOUT_MS,

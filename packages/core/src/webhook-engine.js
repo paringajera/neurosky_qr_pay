@@ -67,7 +67,7 @@ export class WebhookEngine {
       verificationLevel: session.verificationLevel != null ? Number(session.verificationLevel) : (session.verification_level != null ? Number(session.verification_level) : (session.method === 'COD' ? 1 : 0)),
       completedAt: completedAtRaw ? (typeof completedAtRaw.toISOString === 'function' ? completedAtRaw.toISOString() : String(completedAtRaw)) : new Date().toISOString(),
       metadata: metadataVal || {},
-      settlementState: settlementStateFor(publicOutcome)
+      settlementState: settlementStateFor(publicOutcome, session.method || 'UPI')
     };
   }
 

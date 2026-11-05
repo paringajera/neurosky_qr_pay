@@ -3,18 +3,21 @@
 ## 1. Overview
 The NeuroSky Pay public contract is designed to be minimal and robust. Merchant systems do not need to understand queue mechanics, five-minute timers, 30-second verification windows, or multi-channel observation.
 
-An observer match is not a bank settlement. UPI alerts move a session to `OBSERVED_SUCCESS` with `settlementState: NOT_RECONCILED`. `RECONCILED` is emitted only after an admin imports a bank-statement CSV and one line matches that session on receiving account, amount in paise, and 12-digit reference. There is no bank API and no scheduled pull. Do not fulfill a UPI order on `SUCCESS` or `OBSERVED_SUCCESS`.
+Finality is configurable with `NEUROSKY_UPI_FINALITY` (see `docs/CONFIGURATION.md`):
+
+- **`OBSERVER` (default)**: a bank SMS / Gmail alert that matches the session settles the UPI payment. The webhook is `event: "SUCCESS"`, `method: "UPI"`, `settlementState: "OBSERVER_VERIFIED"`, and the customer sees "Payment Successful". Treat it as paid.
+- **`STATEMENT`**: the strict two-step flow. The alert moves the session to `OBSERVED_SUCCESS` with `settlementState: NOT_RECONCILED`; `RECONCILED` is emitted only after an admin imports a bank-statement CSV and one line matches that session on receiving account, amount in paise, and 12-digit reference. In this mode do not fulfill a UPI order before `RECONCILED`.
 
 Public outcomes:
-- `OBSERVED_SUCCESS`: A bank alert was attributed to this UPI session. Not statement-reconciled.
-- `RECONCILED`: A downloaded statement line matched this UPI session. This is not sent for an observer alert alone.
+- `SUCCESS`: In `OBSERVER` mode, a verified UPI payment (`method: "UPI"`, `settlementState: "OBSERVER_VERIFIED"`). In every mode also a Cash on Delivery or counter order (`method: "COD" | "CASH_COUNTER" | "CARD_COUNTER"`, `settlementState: "NOT_BANK_SETTLEMENT"`, no bank money for COD).
+- `OBSERVED_SUCCESS`: `STATEMENT` mode only. A bank alert was attributed to this UPI session. Not statement-reconciled.
+- `RECONCILED`: `STATEMENT` mode only. A downloaded statement line matched this UPI session.
 - `MANUAL_REVIEW`: More than one session could explain the alert, or the payment was flagged. Do not fulfill.
-- `SUCCESS`: Cash on delivery or a counter payment was placed. This is not a UPI bank settlement (`settlementState: NOT_BANK_SETTLEMENT`).
 - `FAILED`: Verification window elapsed with no matching observation.
 - `EXPIRED`: Payment window elapsed.
 - `CANCELLED`: Customer cancelled checkout.
 
-Breaking change: UPI observer webhooks now send `X-Gateway-Event: OBSERVED_SUCCESS` and `event: "OBSERVED_SUCCESS"`. Older integrations that treated UPI `SUCCESS` as paid must switch. `SUCCESS` remains the COD and counter event.
+Compatibility note: deployments that keep `NEUROSKY_UPI_FINALITY=STATEMENT` send `X-Gateway-Event: OBSERVED_SUCCESS` for UPI alerts; integrations written for that mode must switch on `event` and `settlementState` rather than on `SUCCESS` alone.
 
 Webhook crash recovery queues each new dispatchable outcome in the same SQLite transaction as its payment-status change. One payment may therefore have separate pending `OBSERVED_SUCCESS`, `MANUAL_REVIEW`, and `RECONCILED` notifications. Dispatching one outcome does not remove the others. Upgrading the outbox preserves already-pending notifications but does not create notifications for historical UPI outcomes. Merchants must still deduplicate by delivery ID: a crash after receipt but before acknowledgement can cause a retry. Delivery order must not be used as a substitute for checking the event and `settlementState`.
 

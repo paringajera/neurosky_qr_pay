@@ -52,8 +52,16 @@ export function isDispatchableOutcome(status) {
   return isTerminalStatus(status);
 }
 
-/** Bank-statement posture carried on webhook payloads. Observer matches are never reconciled. */
-export function settlementStateFor(status) {
+/**
+ * Settlement posture carried on webhook payloads and status responses.
+ * - RECONCILED: matched to a bank-statement line (STATEMENT finality mode).
+ * - NOT_RECONCILED: observer match awaiting a statement (STATEMENT mode's OBSERVED_SUCCESS).
+ * - OBSERVER_VERIFIED: a UPI payment settled by a verified bank alert (OBSERVER finality mode, the default).
+ * - NOT_BANK_SETTLEMENT: COD or counter SUCCESS, no bank money involved yet.
+ * @param {string} status public outcome
+ * @param {string} [method] payment method, used to tell UPI SUCCESS from COD / counter SUCCESS
+ */
+export function settlementStateFor(status, method) {
   switch (status) {
     case 'RECONCILED':
       return 'RECONCILED';
@@ -62,7 +70,7 @@ export function settlementStateFor(status) {
     case 'MANUAL_REVIEW':
       return 'MANUAL_REVIEW';
     case 'SUCCESS':
-      return 'NOT_BANK_SETTLEMENT';
+      return String(method || '').toUpperCase() === 'UPI' ? 'OBSERVER_VERIFIED' : 'NOT_BANK_SETTLEMENT';
     default:
       return 'NOT_APPLICABLE';
   }

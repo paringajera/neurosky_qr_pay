@@ -9,6 +9,8 @@ process.env.ADMIN_API_TOKEN = TEST_ADMIN_TOKEN;
 process.env.OBSERVER_API_TOKEN = TEST_OBSERVER_TOKEN;
 // Lets the OTP suites read the code from the response instead of WhatsApp.
 process.env.NEUROSKY_EXPOSE_DEV_OTP = 'true';
+// Existing suites were written for the strict two-step UPI flow (OBSERVED_SUCCESS -> RECONCILED).
+if (!process.env.NEUROSKY_UPI_FINALITY) process.env.NEUROSKY_UPI_FINALITY = 'STATEMENT';
 // Webhook suites deliver to a local mock receiver on loopback, which the SSRF guard blocks by default.
 process.env.NEUROSKY_ALLOW_PRIVATE_WEBHOOKS = 'true';
 

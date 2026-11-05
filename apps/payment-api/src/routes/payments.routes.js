@@ -428,7 +428,7 @@ export function registerPaymentRoutes(server, ctx) {
       amountPaise: session.amountPaise.toString(),
       currency: session.currency,
       status: publicStatus,
-      settlementState: settlementStateFor(publicStatus),
+      settlementState: settlementStateFor(publicStatus, session.method),
       method: session.method,
       completedAt: session.completedAt ? session.completedAt.toISOString() : null
     };

@@ -19,6 +19,8 @@ import {
 } from '@neurosky/core';
 import { PaymentStatus, ObserverSource, ObservationAttributionStatus } from '@neurosky/common';
 
+process.env.NEUROSKY_UPI_FINALITY = process.env.NEUROSKY_UPI_FINALITY || 'STATEMENT'; // strict two-step UPI flow expected by this suite
+
 describe('Phase 16: Comprehensive Chaos & Concurrency Verification', () => {
   let db;
   let sessionRepo;

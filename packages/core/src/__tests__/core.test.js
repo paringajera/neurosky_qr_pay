@@ -25,6 +25,8 @@ import {
   CustomerRepository
 } from '@neurosky/db';
 
+process.env.NEUROSKY_UPI_FINALITY = process.env.NEUROSKY_UPI_FINALITY || 'STATEMENT'; // strict two-step UPI flow expected by this suite
+
 describe('@neurosky/core Unit & Integration Tests', () => {
   describe('Payment State Machine', () => {
     test('permits valid transitions and denies illegal transitions', () => {

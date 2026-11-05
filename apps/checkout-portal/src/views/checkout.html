@@ -2102,9 +2102,15 @@
             if (descEl) descEl.textContent = 'This payment was matched to a bank statement.';
             if (codApiBox) codApiBox.style.display = 'none';
           } else {
+            // SUCCESS: a verified UPI alert (OBSERVER finality mode) or a confirmed counter payment.
             if (titleEl) titleEl.textContent = 'Payment Successful!';
-            const activeAppName = state?.branding?.appName || '{{APP_NAME}}' || 'NeuroSky Pay';
-            if (descEl) descEl.textContent = `Your payment was automatically verified by ${activeAppName} banking observers.`;
+            if (descEl) descEl.textContent = `We have received your payment of ${shownAmount}. Thank you!`;
+            if (chipEl) {
+              const chipLabels = { UPI: 'Received via UPI', CASH_COUNTER: 'Paid in cash at the counter', CARD_COUNTER: 'Paid by card at the counter' };
+              const chipText = chipLabels[String(data.method || 'UPI').toUpperCase()];
+              chipEl.hidden = !chipText;
+              if (chipText) chipEl.textContent = chipText;
+            }
             if (codApiBox) codApiBox.style.display = 'none';
           }
 

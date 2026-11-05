@@ -4,6 +4,8 @@ import { Database, runMigrations, PaymentSessionRepository, ObservationRepositor
 import { PaymentStatus, ObserverSource } from '@neurosky/common';
 import { AttributionEngine, ObservationNormalizer, StatementReconciliation, parseStatementCsv, rupeesToPaise } from '@neurosky/core';
 
+process.env.NEUROSKY_UPI_FINALITY = process.env.NEUROSKY_UPI_FINALITY || 'STATEMENT'; // strict two-step UPI flow expected by this suite
+
 const ACCOUNT_ID = '00000000-0000-0000-0000-000000000002';
 
 function istDate(value = new Date()) {

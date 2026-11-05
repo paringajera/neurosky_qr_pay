@@ -34,7 +34,7 @@ export const VALID_TRANSITIONS = Object.freeze({
     // Observer match. Not a bank-statement confirmation.
     PaymentStatus.OBSERVED_SUCCESS,
     PaymentStatus.MANUAL_REVIEW,
-    // COD / cashier confirmation only. UPI alert code must not use SUCCESS.
+    // COD / cashier confirmation, and verified UPI alerts in OBSERVER finality mode (see upi-finality.js).
     PaymentStatus.SUCCESS,
     PaymentStatus.FAILED,
     PaymentStatus.EXPIRED,

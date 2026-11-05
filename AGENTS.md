@@ -186,10 +186,11 @@ One signed `POST` per payment **per event**; a payment can receive several event
 
 | `event` / `X-Gateway-Event` | Sent when                                                                                         | `settlementState`     |
 | :-------------------------- | :------------------------------------------------------------------------------------------------ | :-------------------- |
-| `OBSERVED_SUCCESS`          | A bank SMS / Gmail credit alert was attributed to the UPI session (observer match, not a bank settlement) | `NOT_RECONCILED`      |
-| `RECONCILED`                | An admin imported a bank-statement CSV and one line matched this UPI payment (account, paise, 12-digit reference). The only event that proves money arrived | `RECONCILED`          |
+| `SUCCESS` (`method: UPI`)   | **Default (`NEUROSKY_UPI_FINALITY=OBSERVER`)**: a bank SMS / Gmail credit alert matched the UPI session. The payment is settled | `OBSERVER_VERIFIED`   |
+| `SUCCESS` (`method: COD` / `CASH_COUNTER` / `CARD_COUNTER`) | A Cash on Delivery order was placed or a counter payment was confirmed. For COD no money has moved yet | `NOT_BANK_SETTLEMENT` |
+| `OBSERVED_SUCCESS`          | Only in `STATEMENT` mode: the alert matched but a bank-statement import has not confirmed it yet          | `NOT_RECONCILED`      |
+| `RECONCILED`                | Only in `STATEMENT` mode: an admin imported a bank-statement CSV and one line matched this payment       | `RECONCILED`          |
 | `MANUAL_REVIEW`             | The alert was late or ambiguous; an operator must decide                                           | `MANUAL_REVIEW`       |
-| `SUCCESS`                   | A **Cash on Delivery** order was placed or a counter payment (`CASH_COUNTER` / `CARD_COUNTER`) was confirmed. Never sent for UPI | `NOT_BANK_SETTLEMENT` |
 | `FAILED`                    | The verification window elapsed with no matching alert                                            | `NOT_APPLICABLE`      |
 | `EXPIRED`                   | The 5-minute payment window elapsed                                                               | `NOT_APPLICABLE`      |
 | `CANCELLED`                 | The customer cancelled the checkout                                                               | `NOT_APPLICABLE`      |
@@ -229,7 +230,7 @@ One signed `POST` per payment **per event**; a payment can receive several event
 }
 ```
 
-> **PAYMENT METHOD RULE**: `event: "SUCCESS"` is sent **only** for `method: "COD"` (no money received yet) and for confirmed counter payments (`CASH_COUNTER` / `CARD_COUNTER`). A UPI payment never produces `SUCCESS`: it produces `OBSERVED_SUCCESS` when the bank alert matches and `RECONCILED` when the statement import confirms it. Always check `payload.event`, `payload.method` and `payload.settlementState` before you treat an order as **paid**.
+> **PAYMENT METHOD RULE**: `event: "SUCCESS"` means **paid** only when `payload.method === "UPI"` (settlementState `OBSERVER_VERIFIED`). The same event is also sent when a **Cash on Delivery** order is placed (`method: "COD"`, no money received yet) or a counter payment is confirmed (`CASH_COUNTER` / `CARD_COUNTER`). Always check `payload.event`, `payload.method` and `payload.settlementState` before you treat an order as **paid**. In `STATEMENT` mode UPI sends `OBSERVED_SUCCESS` first and `RECONCILED` after the statement import.
 
 #### Node.js (Express) Webhook Verification Example:
 
@@ -262,18 +263,24 @@ app.post(
     db.webhookDeliveries.remember(payload.deliveryId);
 
     switch (payload.event) {
+      case "SUCCESS":
+        if (payload.method === "UPI") {
+          // Default finality: the bank alert matched, the payment is settled.
+          db.orders.markPaid(payload.orderId, { utr: payload.utr, amount: payload.amount, amountPaise: payload.amountPaise });
+        } else {
+          // COD placed or counter payment confirmed; payload.method tells which.
+          db.orders.markPlaced(payload.orderId, { method: payload.method });
+        }
+        break;
       case "OBSERVED_SUCCESS":
-        // Bank alert matched. Show "payment received, verifying"; do not ship yet.
+        // STATEMENT mode only: alert matched, statement import pending. Show "verifying"; do not ship yet.
         db.orders.markObserved(payload.orderId, { utr: payload.utr, amountPaise: payload.amountPaise });
         break;
       case "RECONCILED":
+        // STATEMENT mode only: statement line matched.
         if (payload.method === "UPI" && payload.settlementState === "RECONCILED") {
           db.orders.markPaid(payload.orderId, { utr: payload.utr, amount: payload.amount, amountPaise: payload.amountPaise });
         }
-        break;
-      case "SUCCESS":
-        // COD placed or counter payment confirmed; payload.method tells which.
-        db.orders.markPlaced(payload.orderId, { method: payload.method });
         break;
       case "MANUAL_REVIEW":
         db.orders.markOnHold(payload.orderId);
@@ -296,7 +303,7 @@ app.post(
 
 1. **No Public Force-Success Endpoint**:
    - There is no endpoint that allows a client or developer to arbitrarily declare a payment outcome.
-   - `OBSERVED_SUCCESS` is generated solely by the internal verification engine after matching a genuine bank SMS/Gmail observation, and `RECONCILED` solely by the admin's bank-statement import. The developer simulator is refused in production unless `NEUROSKY_ALLOW_DEV_TOOLS=true`.
+   - A UPI `SUCCESS` (or `OBSERVED_SUCCESS` in `STATEMENT` mode) is generated solely by the internal verification engine after matching a genuine bank SMS/Gmail observation, and `RECONCILED` solely by the admin's bank-statement import. The developer simulator is refused in production unless `NEUROSKY_ALLOW_DEV_TOOLS=true`.
 2. **Never Expose Secret API Keys in Frontend**:
    - Only publishable public keys (e.g., `data-neurosky-key`) may appear in HTML/JS.
    - `webhookSecret`, database credentials, and observer tokens must remain strictly on the backend.

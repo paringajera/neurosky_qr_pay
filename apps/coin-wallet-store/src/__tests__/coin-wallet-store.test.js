@@ -9,6 +9,8 @@ import { startCoinWalletStore } from '../index.js';
 import { CoinWalletStoreServer } from '../server.js';
 import { generateHmac } from '@neurosky/common';
 
+process.env.NEUROSKY_UPI_FINALITY = process.env.NEUROSKY_UPI_FINALITY || 'STATEMENT'; // strict two-step UPI flow expected by this suite
+
 describe('Coin Top-Up Wallet Demo Store Integration Tests', () => {
   let apiInstance;
   let storeInstance;

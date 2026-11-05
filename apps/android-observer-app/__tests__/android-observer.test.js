@@ -5,6 +5,8 @@ import { startServer as startPaymentApi } from '../../../apps/payment-api/src/in
 import { AndroidObserverDriver } from '../driver.js';
 import { PaymentStatus, resolveSecret } from '@neurosky/common';
 
+process.env.NEUROSKY_UPI_FINALITY = process.env.NEUROSKY_UPI_FINALITY || 'STATEMENT'; // strict two-step UPI flow expected by this suite
+
 describe('Android Payment Observer Integration Tests', () => {
   let apiInstance;
   let driver;
