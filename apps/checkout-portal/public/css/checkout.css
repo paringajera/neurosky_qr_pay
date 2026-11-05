@@ -1163,17 +1163,35 @@
       align-items: center;
     }
 
+    /* Success screen: payment-app style pop, drawn check, soft ripple rings and staggered text */
     .ypg-success-circle {
-      width: 76px;
-      height: 76px;
+      position: relative;
+      width: 86px;
+      height: 86px;
       border-radius: 50%;
-      background: #10b981;
+      background: radial-gradient(circle at 32% 30%, #34d399 0%, #10b981 58%, #059669 100%);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
-      margin-bottom: 18px;
-      animation: ypgSpringPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 14px 32px rgba(16, 185, 129, 0.38), 0 0 0 8px rgba(16, 185, 129, 0.10);
+      margin-bottom: 22px;
+      animation: ypgSpringPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    .ypg-success-circle::before,
+    .ypg-success-circle::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px solid rgba(16, 185, 129, 0.55);
+      opacity: 0;
+      animation: ypgSuccessRipple 1.5s ease-out 0.45s 2;
+      pointer-events: none;
+    }
+
+    .ypg-success-circle::after {
+      animation-delay: 0.95s;
     }
 
     @keyframes ypgSpringPop {
@@ -1182,8 +1200,13 @@
         opacity: 0;
       }
 
-      70% {
-        transform: scale(1.15);
+      65% {
+        transform: scale(1.14);
+        opacity: 1;
+      }
+
+      82% {
+        transform: scale(0.96);
       }
 
       100% {
@@ -1192,24 +1215,111 @@
       }
     }
 
+    @keyframes ypgSuccessRipple {
+      0% {
+        transform: scale(1);
+        opacity: 0.75;
+      }
+
+      100% {
+        transform: scale(2.05);
+        opacity: 0;
+      }
+    }
+
     .ypg-check-svg {
-      width: 42px;
-      height: 42px;
+      width: 46px;
+      height: 46px;
       stroke: #ffffff;
-      stroke-width: 3.5;
+      stroke-width: 3.6;
       stroke-linecap: round;
       stroke-linejoin: round;
       fill: none;
+      filter: drop-shadow(0 1px 1px rgba(5, 150, 105, 0.5));
     }
 
     .ypg-check-path {
       stroke-dasharray: 40;
       stroke-dashoffset: 40;
-      animation: ypgDrawCheck 0.45s 0.25s forwards ease-in-out;
+      animation: ypgDrawCheck 0.5s 0.38s forwards cubic-bezier(0.65, 0, 0.45, 1);
     }
 
     @keyframes ypgDrawCheck {
       to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    .ypg-success-title,
+    .ypg-success-amount,
+    .ypg-success-chip,
+    #successDescText {
+      animation: ypgFadeUp 0.45s ease-out both;
+    }
+
+    .ypg-success-title {
+      animation-delay: 0.35s;
+    }
+
+    .ypg-success-amount {
+      animation-delay: 0.47s;
+    }
+
+    .ypg-success-chip {
+      animation-delay: 0.56s;
+    }
+
+    #successDescText {
+      animation-delay: 0.62s;
+    }
+
+    @keyframes ypgFadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    .ypg-success-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.12);
+      color: #047857;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin: 2px 0 12px;
+    }
+
+    .ypg-success-chip::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ypg-success-circle,
+      .ypg-success-circle::before,
+      .ypg-success-circle::after,
+      .ypg-check-path,
+      .ypg-success-title,
+      .ypg-success-amount,
+      .ypg-success-chip,
+      #successDescText {
+        animation: none !important;
+      }
+
+      .ypg-check-path {
         stroke-dashoffset: 0;
       }
     }
@@ -1222,7 +1332,7 @@
     }
 
     .ypg-success-amount {
-      font-size: 24px;
+      font-size: 28px;
       font-weight: 900;
       color: var(--ypg-hc-success, #10b981);
       margin-bottom: 8px;

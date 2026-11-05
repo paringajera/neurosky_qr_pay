@@ -2079,6 +2079,9 @@
           const descEl = document.getElementById('successDescText');
           const codApiBox = document.getElementById('successCodDevApiBox');
           const codApiUrl = document.getElementById('successCodDevApiUrl');
+          const chipEl = document.getElementById('successChip');
+          if (chipEl) chipEl.hidden = true;
+          const shownAmount = (amtEl && amtEl.textContent) ? amtEl.textContent : `₹${data.amount}`;
 
           if (isCodOrder) {
             if (titleEl) titleEl.textContent = 'Order Placed (Cash on Delivery)!';
@@ -2088,8 +2091,11 @@
               codApiUrl.textContent = `${API_BASE}/api/v1/orders/${data.orderId}/cod`;
             }
           } else if (data.status === 'OBSERVED_SUCCESS') {
-            if (titleEl) titleEl.textContent = 'Payment observed';
-            if (descEl) descEl.textContent = 'A bank alert matched this payment. It is not confirmed against a bank statement yet.';
+            // Customer-facing: the bank alert matched, so the payment has been received. The
+            // merchant still gets event OBSERVED_SUCCESS / settlementState NOT_RECONCILED below.
+            if (titleEl) titleEl.textContent = 'Payment Successful!';
+            if (descEl) descEl.textContent = `We have received your payment of ${shownAmount}. Thank you!`;
+            if (chipEl) { chipEl.hidden = false; chipEl.textContent = `Received via ${data.method || 'UPI'}`; }
             if (codApiBox) codApiBox.style.display = 'none';
           } else if (data.status === 'RECONCILED') {
             if (titleEl) titleEl.textContent = 'Payment reconciled';
