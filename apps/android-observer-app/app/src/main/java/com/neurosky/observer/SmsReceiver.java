@@ -43,12 +43,23 @@ public class SmsReceiver extends BroadcastReceiver {
             final String clientMessageId = UUID.randomUUID().toString();
             Log.i(TAG, "Valid bank credit alert accepted from [" + sender + "]. Dispatching ID: " + clientMessageId);
 
-            // Dispatch validated financial alert to NeuroSky Pay Gateway in asynchronous worker thread
+            // Dispatch validated financial alert to NeuroSky Pay Gateway in asynchronous worker thread.
+            // If the upload fails (no network, gateway unreachable) the SMS is queued on the phone and
+            // retried after every heartbeat and whenever connectivity returns, so no payment is lost.
+            final Context appContext = context.getApplicationContext();
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    boolean success = client.sendSms(sender, body, timestamp, clientMessageId);
+                    boolean success = false;
+                    try {
+                        success = client.sendSms(sender, body, timestamp, clientMessageId);
+                    } catch (Exception e) {
+                        Log.e(TAG, "sendSms threw: " + e.getMessage());
+                    }
                     Log.i(TAG, "Dispatched bank SMS to NeuroSky Pay Gateway (" + clientMessageId + "): " + (success ? "SUCCESS" : "FAILED"));
+                    if (!success) {
+                        SmsOutbox.enqueue(appContext, sender, body, timestamp, clientMessageId);
+                    }
                 }
             }).start();
         }

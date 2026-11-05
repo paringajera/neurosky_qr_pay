@@ -1,7 +1,14 @@
 package com.neurosky.observer;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.util.Log;
 
@@ -131,6 +138,10 @@ public class ApiClient {
         return false;
     }
 
+    /**
+     * Heartbeat v2: liveness plus real device telemetry (battery, charging, network, app version,
+     * number of SMS waiting in the outbox) so the Merchant Admin can show the phone's health.
+     */
     public boolean sendHeartbeat() {
         if (!isPaired()) return false;
 
@@ -142,8 +153,8 @@ public class ApiClient {
             JSONObject json = new JSONObject();
             json.put("deviceId", deviceId);
             json.put("timestamp", System.currentTimeMillis());
-            json.put("batteryPercent", 100);
-            json.put("isCharging", true);
+            json.put("heartbeatVersion", 2);
+            attachTelemetry(json);
 
             String response = postJson(endpoint, json.toString(), deviceId, null, null);
             return response != null;
@@ -151,6 +162,57 @@ public class ApiClient {
             Log.e(TAG, "Heartbeat error: " + e.getMessage());
         }
         return false;
+    }
+
+    /** Adds battery, charging state, network type, app version and outbox size; every part is best-effort. */
+    private void attachTelemetry(JSONObject json) {
+        try {
+            Intent battery = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (battery != null) {
+                int level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                if (level >= 0 && scale > 0) {
+                    json.put("batteryPercent", Math.round(level * 100f / scale));
+                }
+                int status = battery.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                json.put("isCharging", status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL);
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            json.put("networkType", currentNetworkType());
+        } catch (Exception ignored) {
+        }
+        try {
+            PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            if (info != null && info.versionName != null) {
+                json.put("appVersion", info.versionName);
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            json.put("pendingSmsCount", SmsOutbox.count(context));
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** WIFI, MOBILE, ETHERNET, VPN, NONE (no active network) or OTHER. */
+    public String currentNetworkType() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return "NONE";
+            Network active = cm.getActiveNetwork();
+            if (active == null) return "NONE";
+            NetworkCapabilities caps = cm.getNetworkCapabilities(active);
+            if (caps == null) return "NONE";
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return "WIFI";
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) return "MOBILE";
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) return "ETHERNET";
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return "VPN";
+            return "OTHER";
+        } catch (Exception e) {
+            return "OTHER";
+        }
     }
 
     public boolean sendObservation(long amountPaise, double amount, String bankRef, String senderVpa, String title, String text, String packageName) {

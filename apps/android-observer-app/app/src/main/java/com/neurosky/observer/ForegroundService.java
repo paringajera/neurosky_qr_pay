@@ -11,6 +11,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.os.PowerManager;
 import android.util.Log;
 
@@ -23,6 +25,8 @@ public class ForegroundService extends Service {
     private ApiClient apiClient;
     private Handler heartbeatHandler;
     private Runnable heartbeatRunnable;
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
 
     @Override
     public void onCreate() {
@@ -45,7 +49,7 @@ public class ForegroundService extends Service {
         Notification notification = buildPersistentNotification();
         startForeground(NOTIFICATION_ID, notification);
 
-        // 3. Heartbeat loop (every 30 seconds)
+        // 3. Heartbeat loop (every 30 seconds): liveness + telemetry, then drain the SMS outbox
         heartbeatHandler = new Handler(Looper.getMainLooper());
         heartbeatRunnable = new Runnable() {
             @Override
@@ -55,6 +59,7 @@ public class ForegroundService extends Service {
                         @Override
                         public void run() {
                             apiClient.sendHeartbeat();
+                            SmsOutbox.flush(getApplicationContext(), apiClient);
                         }
                     }).start();
                 }
@@ -62,6 +67,33 @@ public class ForegroundService extends Service {
             }
         };
         heartbeatHandler.postDelayed(heartbeatRunnable, 5000);
+
+        // 4. Upload queued bank SMS the moment connectivity comes back (do not wait for the next tick)
+        try {
+            connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (connectivityManager != null) {
+                networkCallback = new ConnectivityManager.NetworkCallback() {
+                    @Override
+                    public void onAvailable(Network network) {
+                        new Thread(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    if (apiClient.isPaired()) {
+                                        SmsOutbox.flush(getApplicationContext(), apiClient);
+                                        apiClient.sendHeartbeat();
+                                    }
+                                } catch (Exception ignored) {
+                                }
+                            }
+                        }).start();
+                    }
+                };
+                connectivityManager.registerDefaultNetworkCallback(networkCallback);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Network callback registration failed: " + e.getMessage());
+        }
         Log.i(TAG, "NEUROSKY Foreground Service started successfully.");
     }
 
@@ -119,6 +151,12 @@ public class ForegroundService extends Service {
         super.onDestroy();
         if (heartbeatHandler != null && heartbeatRunnable != null) {
             heartbeatHandler.removeCallbacks(heartbeatRunnable);
+        }
+        if (connectivityManager != null && networkCallback != null) {
+            try {
+                connectivityManager.unregisterNetworkCallback(networkCallback);
+            } catch (Exception ignored) {
+            }
         }
         if (wakeLock != null && wakeLock.isHeld()) {
             try {

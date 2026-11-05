@@ -174,13 +174,30 @@ try {
 
   // 5. Generate Keystore & Sign APK with apksigner (v1, v2, and v3 signatures)
   console.log('🔏 [5/6] Signing APK with Android v2 + v3 cryptographic certificate...');
-  const keystorePath = path.join(WORK_DIR, 'release.keystore');
-  const ksPass = 'neuroskypg123';
-  const alias = 'neurosky_gateway';
+  // Android only installs an update over an existing app when both are signed with the same key, so the
+  // signing key is created once and kept in data/.secrets/ (gitignored). ANDROID_KEYSTORE_PATH /
+  // ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS override it (CI builds get a throwaway key).
+  const SECRETS_DIR = path.resolve(REPO_ROOT, 'data/.secrets');
+  const keystorePath = process.env.ANDROID_KEYSTORE_PATH || path.join(SECRETS_DIR, 'android-release.keystore');
+  const ksPassFile = path.join(SECRETS_DIR, 'android_keystore_password');
+  const alias = process.env.ANDROID_KEY_ALIAS || 'neurosky_gateway';
+  let ksPass = process.env.ANDROID_KEYSTORE_PASSWORD || (fs.existsSync(ksPassFile) ? fs.readFileSync(ksPassFile, 'utf8').trim() : '');
 
-  execSync(`"${KEYTOOL}" -genkeypair -v -keystore "${keystorePath}" -alias "${alias}" -keyalg RSA -keysize 2048 -validity 10000 -storepass "${ksPass}" -keypass "${ksPass}" -dname "CN=NeuroSky SMS Gateway, OU=Merchant Payments, O=NeuroSky Pay, L=Mumbai, ST=MH, C=IN"`, {
-    stdio: 'pipe'
-  });
+  if (!fs.existsSync(keystorePath)) {
+    fs.mkdirSync(path.dirname(keystorePath), { recursive: true, mode: 0o700 });
+    if (!ksPass) {
+      ksPass = crypto.randomBytes(24).toString('hex');
+      fs.writeFileSync(ksPassFile, ksPass, { mode: 0o600 });
+    }
+    execSync(`"${KEYTOOL}" -genkeypair -v -keystore "${keystorePath}" -alias "${alias}" -keyalg RSA -keysize 2048 -validity 10000 -storepass "${ksPass}" -keypass "${ksPass}" -dname "CN=NeuroSky SMS Gateway, OU=Merchant Payments, O=NeuroSky Pay, L=Mumbai, ST=MH, C=IN"`, {
+      stdio: 'pipe'
+    });
+    console.log(`   🔑 Created a new signing key at ${keystorePath}. Keep it (and back it up): phones only accept updates signed with this key.`);
+  } else if (!ksPass) {
+    throw new Error(`Keystore ${keystorePath} exists but its password is unknown: set ANDROID_KEYSTORE_PASSWORD or restore ${ksPassFile}`);
+  } else {
+    console.log(`   🔑 Signing with the existing key at ${keystorePath}.`);
+  }
 
   const signedApk = path.join(WORK_DIR, 'signed.apk');
   const signCmd = isWin

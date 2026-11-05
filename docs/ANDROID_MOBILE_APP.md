@@ -137,6 +137,39 @@ credit alert that has a bank sender ID (for example `VM-HDFCBK`), a credit word 
 The same check is available to scripts as `POST /api/v1/admin/sms-gateway/parse-test` with the admin
 token and a JSON body `{ "sender": "VM-HDFCBK", "body": "<sms text>" }`.
 
+## 4c. Monitoring the phone (heartbeat, battery, offline queue)
+
+The app runs a sticky foreground service that sends a heartbeat every **30 seconds**. From release
+**1.1.0** the heartbeat carries real telemetry: battery percentage and charging state, network type
+(WIFI / MOBILE / NONE), the app version and the number of bank SMS still waiting to be uploaded.
+Older releases sent a fixed `100% / charging` placeholder; the dashboard shows those as
+"unknown (old app)".
+
+Where to look in Merchant Admin:
+
+- **Operations → Observers**: one line per phone with Online / Offline, last ping and battery.
+- **Developer Hub → Android SMS Hub → Paired Mobile Observers**: full table with status, last ping,
+  last bank SMS, battery, network, app version and the upload queue.
+- A red banner appears under the menu on every page while **no** paired phone is reporting, so an
+  operator notices before customers do.
+
+How "offline" is decided: the server cannot be told that a phone lost its connection, so it infers it.
+Without a heartbeat for `ANDROID_HEARTBEAT_TIMEOUT_MS` (default 3 minutes) the phone is shown as
+OFFLINE and one `ANDROID_DEVICE_OFFLINE` audit event is written (`ANDROID_DEVICE_ONLINE` when it
+returns). After **5 minutes** without a heartbeat the checkout stops creating new UPI sessions until
+the phone is back.
+
+What happens to a bank SMS while the phone is offline: the app keeps it in a durable **outbox** on the
+phone (up to 200 messages) and uploads it, in order and with the original SMS time, after the next
+heartbeat or as soon as connectivity returns. The gateway de-duplicates by message id and fingerprint,
+so a retry never creates a second observation. A payment whose SMS arrives late is matched inside the
+late-observation window and otherwise lands in MANUAL_REVIEW rather than being lost.
+
+Updating the app: builds made with `npm run build:android:apk` are signed with a key kept in
+`data/.secrets/android-release.keystore`. Keep that file; Android only installs an update over an
+existing installation when both are signed with the same key. The very first build with a persistent
+key must be installed after uninstalling the previous app (pair the phone again afterwards).
+
 ## 5. Testing with ADB Notifications (Simulation on Real Phone)
 
 You can simulate real incoming UPI notifications directly on a connected physical phone without spending real money:
